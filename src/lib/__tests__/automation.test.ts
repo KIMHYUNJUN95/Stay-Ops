@@ -19,7 +19,7 @@ import {
   sameSnapshot,
   type CleaningListModel,
 } from "@/lib/automation/messages";
-import { bookDateOf, cancelInstantOf, type AutomationReservation } from "@/lib/automation/reservation-fields";
+import { bookDateOf, cancelInstantOf, originalAmountOf, type AutomationReservation } from "@/lib/automation/reservation-fields";
 import { computeNextWake, isScheduledSendDue, nextScheduledSend, tokyoClock } from "@/lib/automation/schedule";
 import { dictionaries } from "@/lib/i18n";
 import { CALENDAR_BUILDING_ORDER, getCanonicalPropertyName } from "@/lib/room-label-normalization";
@@ -295,13 +295,13 @@ describe("취소 · 당일예약 알림", () => {
       "🔔 *취소* · 아라키초A 302",
       "*10/20(화) → 10/22(목)* · 2박 · 3명(아동 1)",
       "Kim · Airbnb",
-      "*¥86,400* · 예약 777",
+      "취소 금액 *¥86,400* · 예약 777",
       "취소 10/6(화) 09:41",
       "<https://example.test/go/reservation/1|StayOps 에서 열기>",
     ]);
   });
 
-  it("금액은 0원도 *¥0*, Booking.com 은 Booking, 올해가 아니면 연도, 당일예약은 「오늘」(ja)", () => {
+  it("Booking.com 은 Booking, 올해가 아니면 연도, 당일예약은 「오늘」(ja)", () => {
     const cancelled = buildReservationAlertMessage({
       copy: dictionaries.ko.automationMessages,
       kind: "cancel",
@@ -312,7 +312,8 @@ describe("취소 · 당일예약 알림", () => {
       today: "2026-09-29",
     });
     expect(cancelled).toContain("*2027/2/4(목) → 2027/2/8(월)* · 4박");
-    expect(cancelled).toContain(" · Booking\n*¥0* · 예약 93557561");
+    // 요금 내역도 없는 취소 → 금액 확인 불가(0원으로 찍지 않는다).
+    expect(cancelled).toContain(" · Booking\n취소 금액 확인 불가 · 예약 93557561");
     expect(cancelled).not.toContain("StayOps");
     const sameDay = buildReservationAlertMessage({
       copy: dictionaries.ja.automationMessages,
@@ -332,6 +333,50 @@ describe("취소 · 당일예약 알림", () => {
     ]);
     expect(alertPlatformLabel("Airbnb")).toBe("Airbnb");
     expect(alertPlatformLabel("booking.com")).toBe("Booking");
+  });
+});
+
+// 2026-10-07 — Beds24 는 취소되면 price 를 0 으로 비운다. 요금 내역(rateDescription)에서 원래 금액을 되살린다.
+describe("취소된 예약의 원래 금액", () => {
+  const booking = "2026-11-05 (55601056 Standard Rate) JPY 114996\n2026-11-06 (55601056 Standard Rate) JPY 130536\nTotal Commission: 49106\nPayment Charge: 5647\n";
+  const airbnb = "Cancel policy moderate\nBase Price 370500 JPY\nCleaning fee 9500.00 JPY\nHost Fee -58900.00 JPY\nExpected Payout Amount 321100.00 JPY\n";
+
+  it("Booking.com = 날짜 줄 합, Airbnb = Base Price + Cleaning fee, 남은 금액이 있으면 그대로, 없으면 null", () => {
+    expect(originalAmountOf({ rateDescription: booking }, 0)).toBe(245532);
+    expect(originalAmountOf({ rateDescription: airbnb }, 0)).toBe(380000);
+    expect(originalAmountOf({ rateDescription: airbnb }, 12000)).toBe(12000);
+    expect(originalAmountOf({}, 0)).toBeNull();
+  });
+
+  it("취소 알림 · 일일 리포트에 원래 금액이 나온다", () => {
+    const cancelled = reservation({
+      propertyName: "아라키초B",
+      status: "cancelled",
+      raw: { cancelTime: "2026-10-05T04:09:52Z", id: "94244398", price: 0, rateDescription: booking, referer: "Booking.com", status: "cancelled" },
+    });
+    const text = buildReservationAlertMessage({
+      copy: dictionaries.ko.automationMessages,
+      kind: "cancel",
+      openUrl: null,
+      propertyLabel: "아라키초B",
+      reservation: cancelled,
+      roomLabel: "201",
+      today: "2026-10-05",
+    });
+    expect(text).toContain("취소 금액 *¥245,532* · 예약 94244398");
+    const stats = computeDailyStats({
+      buildingOrder: AUTOMATION_BUILDING_ORDER,
+      canonicalProperty: getCanonicalPropertyName,
+      channels: ["airbnb", "booking"],
+      excludedProperties: [],
+      reportDate: "2026-10-05",
+      reservations: [cancelled, reservation({ status: "cancelled", raw: { cancelTime: "2026-10-05T05:00:00Z", price: 0, referer: "Airbnb", status: "cancelled" } })],
+    });
+    expect(stats.cancelRevenue).toBe(245532);
+    expect(stats.cancelUnknown).toBe(1);
+    const daily = buildDailyReportMessage({ copy: dictionaries.ko.automationMessages, locale: "ko", propertyLabel: (n) => n, stats });
+    expect(daily).toContain("매출 *¥0*\n취소 금액 *¥245,532* (금액 확인 불가 1건)");
+    expect(daily).toContain("　취소 1건 · 10월 1건 · *¥245,532*");
   });
 });
 

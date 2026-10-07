@@ -9,7 +9,7 @@
 | 권한 | 언제 쓰나 | 위치 |
 | --- | --- | --- |
 | 카메라 | 출퇴근 QR 스캔, 업무 기록 사진 촬영 | iOS `NSCameraUsageDescription` · Android `CAMERA` |
-| 위치(사용 중) | 출퇴근을 기록하는 순간 한 번. 백그라운드 추적 없음. 거부해도 인증은 진행되고 「위치 없음」으로 기록 | iOS `NSLocationWhenInUseUsageDescription` · Android `ACCESS_FINE/COARSE_LOCATION` |
+| 위치(사용 중) | 출퇴근을 기록하는 순간 한 번. 백그라운드 추적 없음. **출퇴근 인증에는 필수**(근무지 반경 확인 — `submitAttendanceScan`), 거부하면 출퇴근만 못 하고 다른 기능은 그대로 | iOS `NSLocationWhenInUseUsageDescription` · Android `ACCESS_FINE/COARSE_LOCATION` |
 | 사진 보관함 | 업무 기록에 첨부할 사진 선택 | iOS `NSPhotoLibraryUsageDescription` |
 
 - iOS 문구는 `ios/App/App/{en,ko,ja}.lproj/InfoPlist.strings` 에 3개 언어로 있다. `Info.plist` 의 같은 키는 영어 대체값이다.
@@ -76,3 +76,17 @@
 - 계정 삭제: 계정 → 보안 → 계정 삭제.
 - 위치: 출퇴근 버튼을 누르는 순간에만 확인, 백그라운드 추적 없음. 카메라: 출퇴근 QR 스캔과 사진 첨부.
 - 예약 캘린더는 예약 시스템(Beds24) 연동 조직에서만 채워지므로 데모 조직에서는 비어 있을 수 있다.
+- 출퇴근은 **현장에 붙은 QR + 근무지 반경 안 GPS** 가 있어야 기록된다(보안 설계). 심사관은 원격이라 출퇴근 화면 · 카메라 권한 ·
+  「반경 밖」 안내까지만 볼 수 있다 → 현장에서 찍은 **시연 영상 링크**를 메모에 첨부한다(👤 촬영).
+
+## 6. 데모 계정 (계획 B6)
+
+- 스크립트: `node scripts/dev/seed-review-demo.js` (계획만 출력) → `--apply` (실제 생성, 심사관 비밀번호를 **한 번만** 출력).
+- 조직 「StayOps Demo」(slug `stayops-review-demo`) — 실제 조직과 `organization_id` 로 분리. 운영 DB 에 만든다(앱이 운영 웹을 띄우므로).
+- 심사관 계정: `stayops.review@haru-tokyo.com`(기본값, `--email` 로 변경) · **owner** · 언어 en · 메일 인증 완료 상태 → 로그인하면 바로 홈.
+- 다른 직원 2명(Mika Tanaka · Ken Sato, 로그인용 아님) — 게시판 글 · 댓글의 작성자라서 심사관이 **신고 · 차단**을 시험할 수 있다.
+- 샘플: 건물 2(객실 5) · 공지 2 · 게시판 글 3 + 댓글 3 · 할 일 3(오늘 · 내일 · 관리함) · 유지보수 1 · 분실물 1. 모두 가상 데이터.
+- 넣지 않는 것: 예약(Beds24 미연동) · 근무지(원격 출퇴근 불가) · 청소 일정.
+- 다시 돌려도 안전: 조직이 있으면 계정 · 소속만 확인하고 샘플은 다시 넣지 않는다. 비밀번호 교체 = `--apply --password '<새 값>'`.
+- 기존 계정과 이메일이 겹치고 그 계정이 다른 조직 소속이면 **중단**한다(실제 직원 계정을 건드리지 않음).
+- 비밀번호는 저장소 · 문서에 적지 않는다. 제출 때 App Store Connect 「로그인 정보」· Play Console 「앱 액세스」에만 넣는다.

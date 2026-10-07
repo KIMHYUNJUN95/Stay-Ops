@@ -111,6 +111,7 @@ export const AUTOMATION_PAYLOAD_KEYS = [
   "numInfant",
   "bookId",
   "id",
+  "rateDescription",
 ] as const;
 
 export const AUTOMATION_RESERVATION_SELECT = [
@@ -147,4 +148,30 @@ export function toAutomationReservation(row: Record<string, unknown>): Automatio
     status: String(row.status ?? ""),
     updatedAt: String(row.updated_at ?? ""),
   };
+}
+
+/**
+ * 취소 전 **원래 금액** — Beds24 는 취소되면 `price` 를 0 으로 비우지만 요금 내역(`rateDescription`)은 남긴다(2026-10-07 확인).
+ *
+ * - Airbnb: `Base Price N JPY` + `Cleaning fee N JPY` — 2026-06 이후 확정 예약 1,296건 전부 `price` 와 같다.
+ * - Booking.com: 날짜 줄(`2026-11-05 (…) JPY 114996`)의 합 — 1,174건 중 1,166건 ±10엔(반올림). 예약 뒤 연장된 경우는 처음
+ *   날짜만 남아 적게 나온다(0.7%).
+ * - 그 밖에는 0 이 아닌 `price` 를 그대로(수기 예약은 취소돼도 금액이 남는다). 아무것도 없으면 `null`(확인 불가).
+ */
+export function originalAmountOf(raw: RawPayload, currentAmount: number): number | null {
+  if (currentAmount > 0) return currentAmount;
+  const description = typeof raw.rateDescription === "string" ? raw.rateDescription : "";
+  if (!description) return null;
+  if (/Base Price\s+[\d.]+\s*JPY/i.test(description)) {
+    const base = Number(/Base Price\s+([\d.]+)\s*JPY/i.exec(description)?.[1] ?? 0);
+    const cleaning = Number(/Cleaning fee\s+([\d.]+)\s*JPY/i.exec(description)?.[1] ?? 0);
+    const total = base + cleaning;
+    return total > 0 ? Math.round(total) : null;
+  }
+  let total = 0;
+  for (const line of description.split(/\r?\n/)) {
+    const match = /^\d{4}-\d{2}-\d{2}\b.*?JPY\s+([\d.]+)/.exec(line.trim());
+    if (match) total += Number(match[1]);
+  }
+  return total > 0 ? Math.round(total) : null;
 }

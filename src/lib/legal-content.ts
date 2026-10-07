@@ -72,7 +72,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
       {
         heading: "4. 위치 정보와 카메라",
         paragraphs: [
-          "위치 정보는 출퇴근 인증 버튼을 누르거나 출퇴근 QR을 스캔한 그 순간에만 한 번 확인하며, 백그라운드에서 위치를 추적하지 않습니다. 위치 권한을 거부해도 인증은 진행되며 「위치 없음」으로 기록됩니다.",
+          "위치 정보는 출퇴근 인증 버튼을 누르거나 출퇴근 QR을 스캔한 그 순간에만 한 번 확인하며, 백그라운드에서 위치를 추적하지 않습니다. 출퇴근 인증은 근무지 반경 안에 있는지 확인해야 하므로 위치 권한이 필요하며, 거부하면 출퇴근 인증을 할 수 없습니다. 인증에 실패한 시도도 그 시점의 위치와 함께 기록됩니다. 다른 기능은 위치 권한 없이 사용할 수 있습니다.",
           "카메라는 출퇴근 QR 코드를 읽을 때 사용하며 영상은 저장하지 않습니다. 사진은 이용자가 직접 촬영하거나 선택해 첨부한 경우에만 업로드됩니다.",
         ],
       },
@@ -163,7 +163,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
       {
         heading: "4. 位置情報とカメラ",
         paragraphs: [
-          "位置情報は、出退勤の認証ボタンを押したとき、または出退勤QRを読み取ったその瞬間に一度だけ確認します。バックグラウンドで位置を追跡することはありません。位置情報の許可を拒否しても認証は行われ、「位置情報なし」として記録されます。",
+          "位置情報は、出退勤の認証ボタンを押したとき、または出退勤QRを読み取ったその瞬間に一度だけ確認します。バックグラウンドで位置を追跡することはありません。出退勤の認証では勤務地の範囲内にいることを確認するため位置情報の許可が必要で、拒否すると出退勤の認証はできません。認証に失敗した試行も、その時点の位置情報とともに記録されます。その他の機能は位置情報の許可なしで利用できます。",
           "カメラは出退勤用QRコードの読み取りに使用し、映像は保存しません。写真は、ご本人が撮影または選択して添付した場合にのみアップロードされます。",
         ],
       },
@@ -254,7 +254,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
       {
         heading: "4. Location and camera",
         paragraphs: [
-          "Location is checked once, only at the moment you tap clock-in/out or scan the attendance QR code. We never track location in the background. If you deny location permission, verification still proceeds and is recorded as \"no location\".",
+          "Location is checked once, only at the moment you tap clock-in/out or scan the attendance QR code. We never track location in the background. Clock-in/out verification needs location permission to confirm you are within the work site's range; if you deny it, you cannot verify a clock-in or clock-out. Failed attempts are also recorded with the location at that moment. All other features work without location permission.",
           "The camera is used to read the attendance QR code; video is never stored. Photos are uploaded only when you take or choose them yourself.",
         ],
       },

@@ -26,6 +26,7 @@ import {
   cancelInstantOf,
   exactReferer,
   guestCountsOf,
+  originalAmountOf,
   platformLabel,
   type AutomationReservation,
 } from "@/lib/automation/reservation-fields";
@@ -120,6 +121,10 @@ export type DailyBuildingStats = {
   newCount: number;
   cancelCount: number;
   revenue: number;
+  /** 취소된 예약의 원래 금액 합(요금 내역으로 되살림 — `originalAmountOf`). */
+  cancelRevenue: number;
+  /** 원래 금액을 알 수 없는 취소 수. */
+  cancelUnknown: number;
   newMonths: MonthCounts;
   cancelMonths: MonthCounts;
 };
@@ -131,6 +136,9 @@ export type DailyStats = {
   totalNew: number;
   totalCancel: number;
   revenue: number;
+  /** 어제 취소된 예약의 원래 금액 합 · 금액을 모르는 취소 수 — 「얼마가 빠져나갔나」(2026-10-07 사용자 요구). */
+  cancelRevenue: number;
+  cancelUnknown: number;
   mtdNew: number;
   newByChannel: Record<DailyReportChannel, number>;
   cancelByChannel: Record<DailyReportChannel, number>;
@@ -184,7 +192,16 @@ export function computeDailyStats(input: {
   const buildings = new Map<string, DailyBuildingStats>();
   for (const name of input.buildingOrder) {
     if (excluded.has(name)) continue;
-    buildings.set(name, { cancelCount: 0, cancelMonths: new Map(), newCount: 0, newMonths: new Map(), propertyName: name, revenue: 0 });
+    buildings.set(name, {
+      cancelCount: 0,
+      cancelMonths: new Map(),
+      cancelRevenue: 0,
+      cancelUnknown: 0,
+      newCount: 0,
+      newMonths: new Map(),
+      propertyName: name,
+      revenue: 0,
+    });
   }
 
   const stats: DailyStats = {
@@ -192,6 +209,8 @@ export function computeDailyStats(input: {
     cancelByChannel: { airbnb: 0, booking: 0 },
     cancelDetails: [],
     cancelMonths: new Map(),
+    cancelRevenue: 0,
+    cancelUnknown: 0,
     mtdMonths: new Map(),
     mtdNew: 0,
     newByChannel: { airbnb: 0, booking: 0 },
@@ -240,9 +259,14 @@ export function computeDailyStats(input: {
       stats.totalCancel += 1;
       stats.cancelByChannel[channel] += 1;
       bump(stats.cancelMonths, reservation.checkIn);
-      stats.cancelDetails.push({ amount, guestName: reservation.guestName, propertyName, roomLabel: reservation.roomLabel });
+      const original = originalAmountOf(reservation.raw, amount);
+      if (original === null) stats.cancelUnknown += 1;
+      else stats.cancelRevenue += original;
+      stats.cancelDetails.push({ amount: original ?? 0, guestName: reservation.guestName, propertyName, roomLabel: reservation.roomLabel });
       if (building) {
         building.cancelCount += 1;
+        if (original === null) building.cancelUnknown += 1;
+        else building.cancelRevenue += original;
         bump(building.cancelMonths, reservation.checkIn);
       }
     }
@@ -286,6 +310,13 @@ export function buildDailyReportMessage(input: {
     d.sectionTotal,
     fill(d.totalsCounts, { cancel: c(stats.totalCancel), new: c(stats.totalNew) }),
     fill(d.totalsRevenue, { revenue: formatYen(stats.revenue) }),
+    // 취소된 예약의 원래 금액 — 매출 바로 아래 한 줄(폰에서 한 줄에 몰지 않는다).
+    ...(stats.totalCancel > 0
+      ? [
+          fill(d.totalsCancelRevenue, { amount: formatYen(stats.cancelRevenue) }) +
+            (stats.cancelUnknown > 0 ? fill(d.cancelUnknown, { n: stats.cancelUnknown }) : ""),
+        ]
+      : []),
     fill(d.newChannels, { airbnb: c(stats.newByChannel.airbnb), booking: c(stats.newByChannel.booking) }),
     fill(d.cancelChannels, { airbnb: c(stats.cancelByChannel.airbnb), booking: c(stats.cancelByChannel.booking) }),
     fill(d.newMonths, { list: monthBrief(copy, locale, stats.newMonths) || copy.emptyValue }),
@@ -304,7 +335,12 @@ export function buildDailyReportMessage(input: {
     const cancelMonths = monthBrief(copy, locale, building.cancelMonths);
     lines.push(fill(d.buildingHead, { name, revenue: building.revenue > 0 ? `*${formatYen(building.revenue)}*` : "" }).trimEnd());
     lines.push(fill(d.buildingNew, { months: newMonths ? ` · ${newMonths}` : "", n: c(building.newCount) }));
-    if (building.cancelCount > 0) lines.push(fill(d.buildingCancel, { months: cancelMonths ? ` · ${cancelMonths}` : "", n: c(building.cancelCount) }));
+    if (building.cancelCount > 0) {
+      const lost =
+        (building.cancelRevenue > 0 ? ` · *${formatYen(building.cancelRevenue)}*` : "") +
+        (building.cancelUnknown > 0 ? fill(d.cancelUnknown, { n: building.cancelUnknown }) : "");
+      lines.push(fill(d.buildingCancel, { months: cancelMonths ? ` · ${cancelMonths}` : "", n: c(building.cancelCount) }) + lost);
+    }
   }
   if (quiet.length > 0) lines.push(fill(d.buildingsQuiet, { list: quiet.join(copy.listSeparator) }));
   lines.push(
@@ -494,7 +530,16 @@ export function buildReservationAlertMessage(input: {
     fill(a.head, { property: input.propertyLabel, room: input.roomLabel || "", title: input.kind === "cancel" ? a.cancelTitle : a.sameDayTitle }).trimEnd(),
     [`*${dates}*`, fill(a.nights, { n: nights }), guestText].filter(Boolean).join(" · "),
     [reservation.guestName || "-", alertPlatformLabel(platformLabel(reservation.raw))].join(" · "),
-    fill(a.amount, { amount: `*${formatYen(amount)}*`, id: bookingIdOf(reservation.raw, reservation.id) }),
+    input.kind === "cancel"
+      ? (() => {
+          // 취소는 Beds24 가 금액을 0 으로 비운다 — 요금 내역에서 원래 금액을 되살려 「얼마가 빠졌나」를 보인다(2026-10-07).
+          const original = originalAmountOf(reservation.raw, amount);
+          const id = bookingIdOf(reservation.raw, reservation.id);
+          return original === null
+            ? fill(a.cancelAmountUnknown, { id })
+            : fill(a.cancelAmount, { amount: `*${formatYen(original)}*`, id });
+        })()
+      : fill(a.amount, { amount: `*${formatYen(amount)}*`, id: bookingIdOf(reservation.raw, reservation.id) }),
   ];
   if (input.kind === "cancel") {
     const instant = cancelInstantOf(reservation.raw, true);
