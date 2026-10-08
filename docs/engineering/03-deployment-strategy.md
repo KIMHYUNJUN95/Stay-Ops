@@ -182,7 +182,10 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 1. WSL 에서 `npm run cap:android:win` (= `scripts/dev/sync-android-to-windows.sh`) — `cap sync` 후 `android/` 와 그것이 참조하는
    `node_modules/@capacitor/*` 를 같은 구조로 **`C:\dev\stayops-android`** 에 복사한다(빌드 산출물 · `.idea` · `local.properties` 는 건드리지 않음).
 2. Android Studio → File → Open → **`C:\dev\stayops-android\android`** → Trust Project → Gradle 동기화(처음 몇 분).
-3. Device Manager 에서 에뮬레이터(Pixel 계열 · 최신 API)를 만들거나 USB 디버깅 실기기 연결 → ▶ Run.
+3. Device Manager 에서 에뮬레이터를 만들거나 USB 디버깅 실기기 연결 → ▶ Run. 이 PC 에서 검증된 설정(2026-10-08): **Pixel 8 · API 35 「Google Play
+   Intel x86_64 Atom」(「16 KB Page Size」 아님) · Additional settings 에서 Default boot = Cold · Graphics acceleration = Software · RAM 2048MB**.
+   최신 미리보기 API(37.x)나 하드웨어 그래픽에서는 에뮬레이터가 멈췄다. 「Project update recommended(AGP 업그레이드)」 알림은 누르지 않는다
+   (Gradle 플러그인 버전은 Capacitor 가 맞춘 값).
 4. 확인: 이메일 로그인 → Google 로그인(시스템 브라우저 → 앱 복귀) → 홈 → 출퇴근 QR(카메라 · 위치 권한 팝업) → 게시판 첨부 다운로드 →
    룸 링크 외부 링크 → 시트 열고 뒤로가기 버튼 → 비행기 모드로 연결 실패 화면 · 자동 복귀 → 새 아이콘 · 시작 화면.
 - 네이티브 설정 · 플러그인을 바꾸면 1번을 다시 돌린다. 웹 화면만 바뀐 것은 다시 빌드할 필요 없다(앱이 배포된 웹을 띄운다).

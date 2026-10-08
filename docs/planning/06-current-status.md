@@ -9,6 +9,13 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-08 — 앱 출시 준비: Android 에뮬레이터 첫 실행 · 로그인 첫 화면 문구
+
+- B1-1: Pixel 8(API 35 · Google Play · x86_64 · Software 그래픽 · Cold boot · RAM 2048MB) 에뮬레이터에서 앱 설치 · 실행 · 로그인 화면 표시 확인.
+- 로그인 첫 화면이 폰 · 앱에서도 「관리자 콘솔에 로그인하세요」였다(PC 콘솔 문구 공용). 폰 · 태블릿 · 앱(아이패드는 터치 Mac 쿠키 포함)에서는
+  `dictionary.auth.console.entry*Mobile`(ko/ja/en) — 「로그인하고 업무를 시작하세요」. PC 는 그대로. `src/app/auth/login/page.tsx`.
+- 출시 체크리스트 · 진행: `17-app-release-plan.md`. 심사 자료: `18-store-review-kit.md`.
+
 ## 2026-10-08 — 매출 · 가동률 화면 실시간 반영
 
 - 두 화면에 `<Beds24LiveRefresh>` 를 붙였다 — 예약 웹훅 · 정합성 · 수기 예약 신호가 오면 새로고침 없이 다시 읽는다(판매 캘린더와 같은 방식).

@@ -13,7 +13,7 @@ import { resolveAuthErrorMessage } from "@/lib/auth-errors";
 import { ATTENDANCE_QR_PATH } from "@/lib/attendance-qr";
 import { isMobileSurfacePath, isSurfaceNeutralPath } from "@/lib/surface-routing";
 import { getDictionary, inferLocaleFromAcceptLanguage, isLocale, type Locale } from "@/lib/i18n";
-import { isMobileUserAgent } from "@/lib/mobile-device";
+import { getDeviceSurfaceFromHeaders, isMobileUserAgent } from "@/lib/mobile-device";
 import { getOnboardingState } from "@/lib/onboarding";
 import { sanitizeNextPath } from "@/lib/safe-redirect";
 
@@ -92,6 +92,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   // sign-in — overriding the role-based admin default and any ?next=/admin/... value.
   const userAgent = (await headers()).get("user-agent");
   const isMobileDevice = isMobileUserAgent(userAgent);
+  // 로그인 첫 화면 문구용 — 아이패드(Mac 사용자 에이전트)는 「터치 되는 Mac」 쿠키로 알아본다(`getDeviceSurfaceFromHeaders`).
+  const showMobileCopy = isMobileDevice || getDeviceSurfaceFromHeaders(headerStore) === "mobile";
   const next = sanitizeNextPath(params.next, isMobileDevice ? "/mobile" : "/admin");
   // 목적지의 경로 부분만 본다 — `next` 에는 쿼리가 붙어 올 수 있다(예: 근태 QR 의 ?token=).
   const nextPathname = next.split("?")[0].split("#")[0];
@@ -388,9 +390,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <AuthFrame locale={locale} next={effectiveNext} view={params.view}>
       <div className="auth-card">
-        <p className="auth-eyebrow">{c.entryEyebrow}</p>
-        <h2 className="auth-title" style={{ whiteSpace: "pre-line" }}>{c.entryTitle}</h2>
-        <p className="auth-lede">{c.entryLede}</p>
+        {/* 폰 · 태블릿 · 앱에서는 현장 앱 문구 — 「관리자 콘솔」 문구는 PC 에서만(2026-10-08, 앱 심사 준비) */}
+        <p className="auth-eyebrow">{showMobileCopy ? c.entryEyebrowMobile : c.entryEyebrow}</p>
+        <h2 className="auth-title" style={{ whiteSpace: "pre-line" }}>
+          {showMobileCopy ? c.entryTitleMobile : c.entryTitle}
+        </h2>
+        <p className="auth-lede">{showMobileCopy ? c.entryLedeMobile : c.entryLede}</p>
         {isAttendanceQrEntry && (
           <div className="banner banner--info" style={{ marginTop: 18 }}>
             <span className="banner__ic"><Ic>{QrMark}</Ic></span>

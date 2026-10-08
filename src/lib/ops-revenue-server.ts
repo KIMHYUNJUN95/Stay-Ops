@@ -95,58 +95,7 @@ export async function getOpsRevenueData(
     start: everything.reduce((min, piece) => (piece.start < min ? piece.start : min), everything[0].start),
   };
 
-  const supabase = await getSupabaseServerClient();
-  const inputs = await readOpsSalesInputs({ organizationId: session.organization.id, properties: [], supabase, window });
-  const reservations = inputs.reservations.map((reservation) => ({ ...reservation, raw: reservation.raw as SalesRawPayload }));
-
-  const cache = new Map<string, PieceResult>();
-  /** `raw` = 문 열기 전 규칙 없이(분모 = 객실 수 × 일수) — 「앞으로」 탭. */
-  const summarize = (piece: Piece, raw = false): PieceResult => {
-    const cacheKey = `${piece.start}|${piece.endExclusive}|${raw ? "raw" : "open"}`;
-    const hit = cache.get(cacheKey);
-    if (hit) return hit;
-    const summary = buildOpsSalesSummary({
-      // 차단은 「오늘 이후 빈방」에만 쓰인다 — 매출 화면에는 없다.
-      blocks: [],
-      endExclusive: piece.endExclusive,
-      // 저쪽 매출 화면(`RevenueDashboard`)은 마이너스 금액 예약도 그대로 더한다 — 그 화면과 숫자를 맞춘다(2026-10-07).
-      negativeAmounts: "include",
-      properties: inputs.properties,
-      reservations,
-      rooms: inputs.rooms,
-      start: piece.start,
-      today,
-    });
-    const result: PieceResult = { properties: new Map(), rooms: new Map() };
-    for (const row of summary.byProperty) {
-      const open = raw || row.occupiedNights > 0;
-      const channel = Object.fromEntries(row.channels.map((part) => [part.channel, part.revenue])) as Record<string, number>;
-      result.properties.set(row.propertyName, {
-        airbnb: channel.airbnb ?? 0,
-        availableNights: open ? row.availableNights : 0,
-        booking: channel.booking ?? 0,
-        commission: row.commission,
-        direct: channel.direct ?? 0,
-        occupiedNights: row.occupiedNights,
-        other: channel.other ?? 0,
-        revenue: row.revenue,
-      });
-      for (const room of row.rooms) {
-        result.rooms.set(room.key, {
-          airbnb: room.channelRevenue.airbnb,
-          availableNights: open ? room.availableNights : 0,
-          booking: room.channelRevenue.booking,
-          commission: room.commission,
-          direct: room.channelRevenue.direct,
-          occupiedNights: room.occupiedNights,
-          other: room.channelRevenue.other,
-          revenue: room.revenue,
-        });
-      }
-    }
-    cache.set(cacheKey, result);
-    return result;
-  };
+  const { cache, inputs, summarize } = await createRevenueSummarizer(session, window, today);
 
   const toRecord = (map: Map<string, RevenueCell>): OpsRevenueCells => Object.fromEntries(map);
   const sumPieces = (pieces: Piece[]) => {
@@ -207,6 +156,135 @@ export async function getOpsRevenueData(
     rangeRoomCells: current.rooms,
     today,
   };
+}
+
+// ── 비교(A vs B) ─────────────────────────────────────────────────────────
+
+export type OpsRevenueComparePeriod = { mode: RevenueMode; range: RevenueRange };
+
+export type OpsRevenueCompareData = {
+  today: string;
+  a: OpsRevenueComparePeriod;
+  b: OpsRevenueComparePeriod;
+  properties: Array<{ name: string; roomCount: number; defaultExcluded: boolean }>;
+  /** 건물 → 칸. 기간을 달로 잘라 요약한 합(문 열기 전 규칙은 달마다). */
+  aCells: OpsRevenueCells;
+  bCells: OpsRevenueCells;
+  /** 두 기간을 덮는 월별 추이(최대 24달, 끝 = 늦은 쪽 기간의 마지막 달). */
+  trendMonths: string[];
+  trendCells: Record<string, OpsRevenueCells>;
+};
+
+const COMPARE_TREND_MAX = 24;
+
+/**
+ * 매출 비교 — 두 기간 A · B 를 같은 읽기 · 같은 식으로(2026-10-08, 시안 「매출 비교」 1번 v4).
+ * 도메인 계약: docs/product/34-metrics-and-automation.md 「매출 비교」
+ */
+export async function getOpsRevenueCompareData(
+  session: AppSession,
+  args: { a: OpsRevenueComparePeriod; b: OpsRevenueComparePeriod },
+): Promise<OpsRevenueCompareData> {
+  const today = toJstDateString(new Date());
+  const aPieces = splitByMonth(args.a.range);
+  const bPieces = splitByMonth(args.b.range);
+  const firstMonth = [args.a.range.from, args.b.range.from].sort()[0].slice(0, 7);
+  const lastMonth = [args.a.range.to, args.b.range.to].sort()[1].slice(0, 7);
+  const trendMonths: string[] = [];
+  for (let month = firstMonth; month <= lastMonth; month = shiftMonthKey(month, 1)) trendMonths.push(month);
+  const trimmed = trendMonths.slice(-COMPARE_TREND_MAX);
+  const monthPiece = (month: string): Piece => ({ endExclusive: nextDay(lastDayOfMonth(month)), start: `${month}-01` });
+
+  const everything: Piece[] = [...aPieces, ...bPieces, ...trimmed.map(monthPiece)];
+  const window = {
+    endExclusive: everything.reduce((max, piece) => (piece.endExclusive > max ? piece.endExclusive : max), everything[0].endExclusive),
+    start: everything.reduce((min, piece) => (piece.start < min ? piece.start : min), everything[0].start),
+  };
+  const { inputs, summarize } = await createRevenueSummarizer(session, window, today);
+  const sum = (pieces: Piece[]) => {
+    const out = new Map<string, RevenueCell>();
+    for (const piece of pieces) for (const [key, cell] of summarize(piece).properties) addCell(out.get(key) ?? setNew(out, key), cell);
+    return Object.fromEntries(out) as OpsRevenueCells;
+  };
+  const trendCells: Record<string, OpsRevenueCells> = {};
+  for (const month of trimmed) trendCells[month] = Object.fromEntries(summarize(monthPiece(month)).properties);
+
+  const excluded = new Set(defaultSalesExcluded(inputs.properties));
+  return {
+    a: args.a,
+    aCells: sum(aPieces),
+    b: args.b,
+    bCells: sum(bPieces),
+    properties: inputs.properties.map((name) => ({
+      defaultExcluded: excluded.has(name),
+      name,
+      roomCount: inputs.rooms.filter((room) => room.propertyName === name && room.inCatalog).length,
+    })),
+    today,
+    trendCells,
+    trendMonths: trimmed,
+  };
+}
+
+/**
+ * 한 번 읽고(`readOpsSalesInputs`) 기간 조각마다 매출 요약을 내는 함수 — 매출 화면 · 가동률 · 비교가 같이 쓴다.
+ * 조각마다 그 달 판매가 없는 건물은 분모(객실박)를 0 으로 둔다(「문 열기 전」). `raw` 면 그 규칙 없이.
+ */
+async function createRevenueSummarizer(session: AppSession, window: { start: string; endExclusive: string }, today: string) {
+  const supabase = await getSupabaseServerClient();
+  const inputs = await readOpsSalesInputs({ organizationId: session.organization.id, properties: [], supabase, window });
+  const reservations = inputs.reservations.map((reservation) => ({ ...reservation, raw: reservation.raw as SalesRawPayload }));
+
+  const cache = new Map<string, PieceResult>();
+  /** `raw` = 문 열기 전 규칙 없이(분모 = 객실 수 × 일수) — 「앞으로」 탭. */
+  const summarize = (piece: Piece, raw = false): PieceResult => {
+    const cacheKey = `${piece.start}|${piece.endExclusive}|${raw ? "raw" : "open"}`;
+    const hit = cache.get(cacheKey);
+    if (hit) return hit;
+    const summary = buildOpsSalesSummary({
+      // 차단은 「오늘 이후 빈방」에만 쓰인다 — 매출 화면에는 없다.
+      blocks: [],
+      endExclusive: piece.endExclusive,
+      // 저쪽 매출 화면(`RevenueDashboard`)은 마이너스 금액 예약도 그대로 더한다 — 그 화면과 숫자를 맞춘다(2026-10-07).
+      negativeAmounts: "include",
+      properties: inputs.properties,
+      reservations,
+      rooms: inputs.rooms,
+      start: piece.start,
+      today,
+    });
+    const result: PieceResult = { properties: new Map(), rooms: new Map() };
+    for (const row of summary.byProperty) {
+      const open = raw || row.occupiedNights > 0;
+      const channel = Object.fromEntries(row.channels.map((part) => [part.channel, part.revenue])) as Record<string, number>;
+      result.properties.set(row.propertyName, {
+        airbnb: channel.airbnb ?? 0,
+        availableNights: open ? row.availableNights : 0,
+        booking: channel.booking ?? 0,
+        commission: row.commission,
+        direct: channel.direct ?? 0,
+        occupiedNights: row.occupiedNights,
+        other: channel.other ?? 0,
+        revenue: row.revenue,
+      });
+      for (const room of row.rooms) {
+        result.rooms.set(room.key, {
+          airbnb: room.channelRevenue.airbnb,
+          availableNights: open ? room.availableNights : 0,
+          booking: room.channelRevenue.booking,
+          commission: room.commission,
+          direct: room.channelRevenue.direct,
+          occupiedNights: room.occupiedNights,
+          other: room.channelRevenue.other,
+          revenue: room.revenue,
+        });
+      }
+    }
+    cache.set(cacheKey, result);
+    return result;
+  };
+
+  return { cache, inputs, summarize };
 }
 
 function setNew(map: Map<string, RevenueCell>, key: string): RevenueCell {

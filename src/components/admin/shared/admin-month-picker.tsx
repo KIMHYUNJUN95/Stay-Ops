@@ -24,6 +24,11 @@ type AdminMonthPickerProps = {
   /** Optional non-month query keys preserved while switching months (e.g. selected user/panel). */
   preserveQueryKeys?: string[];
   labels: AdminMonthPickerLabels;
+  /**
+   * 주면 주소를 바꾸지 않고 이 함수를 부른다(2026-10-08 — 매출 비교처럼 한 화면에 달 선택기가 둘이라 `?ym=` 하나로
+   * 안 되는 곳). 없으면 예전처럼 `basePath?ym=` 로 간다.
+   */
+  onSelect?: (ym: string) => void;
 };
 
 
@@ -33,6 +38,7 @@ export function AdminMonthPicker({
   basePath,
   preserveQueryKeys = [],
   labels,
+  onSelect,
 }: AdminMonthPickerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,6 +84,10 @@ export function AdminMonthPicker({
   }
   function go(targetYm: string) {
     setOpen(false);
+    if (onSelect) {
+      onSelect(targetYm);
+      return;
+    }
     const next = new URLSearchParams();
     next.set("ym", targetYm);
     // 반복 키(`?property=A&property=B`)도 **전부** 옮긴다 — 첫 값만 옮기면 다중 선택이 달을 넘길 때
