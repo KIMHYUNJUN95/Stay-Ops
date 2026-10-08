@@ -117,7 +117,7 @@
 .adm .orv__l { font-size: 10.5px; font-weight: 700; color: var(--faint); }
 
 /* 월별 막대 */
-.adm .orv__chart { display: grid; grid-template-columns: 46px repeat(15, minmax(0, 1fr)); gap: 0 6px; align-items: end; padding: 4px 16px 14px; }
+.adm .orv__chart { display: grid; grid-template-columns: 92px repeat(15, minmax(0, 1fr)); gap: 0 6px; align-items: end; padding: 4px 16px 14px; }
 .adm .orv__yax { display: flex; flex-direction: column; justify-content: space-between; height: 190px; margin-bottom: 52px; padding-right: 4px; text-align: right; font-family: var(--mono); font-size: 9.5px; font-weight: 600; color: var(--faint); }
 .adm .orv__col { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px 3px 4px; border-radius: 8px; border: 1px solid transparent; background: transparent; font: inherit; cursor: pointer; min-width: 0; }
 .adm .orv__col:hover { background: var(--surface2); }
@@ -188,7 +188,7 @@
 .adm .orv__mxsplit { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
 .adm .orv__unit { font-size: 11px; font-weight: 700; color: var(--adm-muted); }
 .adm .orv__mx { padding: 4px 14px 8px; overflow-x: auto; }
-.adm .orv__mg { display: grid; grid-template-columns: 132px repeat(15, minmax(46px, 1fr)) 92px; gap: 4px; align-items: stretch; min-width: 880px; }
+.adm .orv__mg { display: grid; grid-template-columns: 132px repeat(15, minmax(46px, 1fr)) 120px; gap: 4px; align-items: stretch; min-width: 880px; }
 .adm .orv__mh { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 1px; padding-bottom: 4px; }
 .adm .orv__mh .yy { height: 12px; font-size: 9.5px; font-weight: 700; color: var(--faint); }
 .adm .orv__mh .mm { padding: 2px 7px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
@@ -245,7 +245,7 @@
 .adm .orv__kvg .l { font-size: 10.5px; font-weight: 700; color: var(--faint); }
 .adm .orv__kvg .v { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-family: var(--mono); font-size: 14.5px; font-weight: 700; color: var(--ink); }
 .adm .orv__rooms { border-top: 1px solid var(--line-soft); padding-top: 12px; gap: 8px; }
-.adm .orv__rr { display: grid; grid-template-columns: 58px minmax(0, 1fr) 62px 38px; gap: 8px; align-items: center; font-size: 11.5px; }
+.adm .orv__rr { display: grid; grid-template-columns: 58px minmax(0, 1fr) 86px 38px; gap: 8px; align-items: center; font-size: 11.5px; }
 .adm .orv__rr .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm .orv__rr .bar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
 .adm .orv__rr .bar i { display: block; height: 100%; }

@@ -107,10 +107,8 @@ export function OpsRevenueConsole({
 
   // ── 숫자 모양 ──
   const yen = (value: number) => `¥${Math.round(value).toLocaleString(localeTag)}`;
-  const man = (value: number) => {
-    const m = value / 1e6;
-    return `¥${m >= 100 ? m.toFixed(0) : m.toFixed(1)}M`;
-  };
+  // 화면의 금액은 전부 엔 단위 전체 숫자다(2026-10-08 사용자 — 「M 표시 말고 진짜 전부 숫자로」). 「건물 × 월」 칸만 좁아서
+  // 백만 엔 단위로 줄이고 제목에 단위를 적는다(`short`).
   const pct = (value: number) => `${value.toFixed(1)}%`;
   const deltaText = (delta: number | null) =>
     delta === null ? copy.newLabel : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)}%`;
@@ -214,15 +212,15 @@ export function OpsRevenueConsole({
   // ── 숫자 6개 ──
   const dRev = changePct(current.revenue, previous.revenue);
   const kpis = [
-    { d: deltaText(dRev), hero: true, label: copy.kpiRevenue, sub: fill(copy.lastYearValue, { v: man(previous.revenue) }), tone: tone(dRev), value: man(current.revenue) },
+    { d: deltaText(dRev), hero: true, label: copy.kpiRevenue, sub: fill(copy.lastYearValue, { v: yen(previous.revenue) }), tone: tone(dRev), value: yen(current.revenue) },
     {
       d: deltaText(changePct(current.commission, previous.commission)),
       label: copy.kpiCommission,
       sub: fill(copy.shareOfRevenue, { v: current.revenue > 0 ? pct((current.commission / current.revenue) * 100) : "—" }),
       tone: "z",
-      value: man(current.commission),
+      value: yen(current.commission),
     },
-    { d: deltaText(changePct(current.net, previous.net)), label: copy.kpiNet, sub: fill(copy.lastYearValue, { v: man(previous.net) }), tone: tone(changePct(current.net, previous.net)), value: man(current.net) },
+    { d: deltaText(changePct(current.net, previous.net)), label: copy.kpiNet, sub: fill(copy.lastYearValue, { v: yen(previous.net) }), tone: tone(changePct(current.net, previous.net)), value: yen(current.net) },
     {
       d: previous.availableNights > 0 ? pointText(current.occupancyPct, previous.occupancyPct) : copy.newLabel,
       label: copy.kpiOccupancy,
@@ -382,7 +380,6 @@ export function OpsRevenueConsole({
           deltaText={deltaText}
           go={go}
           isIn={isIn}
-          man={man}
           monthShort={monthShort}
           openRow={openRow}
           pct={pct}
@@ -398,7 +395,6 @@ export function OpsRevenueConsole({
           data={data}
           isIn={isIn}
           lens={lens}
-          man={man}
           metric={metric}
           monthLong={monthLong}
           monthShort={monthShort}
@@ -432,7 +428,6 @@ function shiftToMode(mode: RevenueMode, range: RevenueRange, today: string): Rev
 
 type Fmt = {
   yen: (value: number) => string;
-  man: (value: number) => string;
   pct: (value: number) => string;
   deltaText: (delta: number | null) => string;
   tone: (delta: number | null) => string;
@@ -450,7 +445,6 @@ function ReportTab({
   go,
   tab,
   yen,
-  man,
   pct,
   deltaText,
   tone,
@@ -552,7 +546,7 @@ function ReportTab({
         <div className="orv__chart">
           <div className="orv__yax">
             {[4, 3, 2, 1].map((n) => (
-              <span key={n}>¥{((step * n) / 1e6).toFixed(0)}M</span>
+              <span key={n}>{yen(step * n)}</span>
             ))}
             <span>0</span>
           </div>
@@ -671,7 +665,7 @@ function ReportTab({
                     </RowGroup>
                   );
                 })}
-                <TotalRow copy={copy} data={data} isIn={isIn} yen={yen} pct={pct} deltaText={deltaText} tone={tone} man={man} />
+                <TotalRow copy={copy} data={data} isIn={isIn} yen={yen} pct={pct} deltaText={deltaText} tone={tone} />
               </tbody>
             </table>
           </div>
@@ -779,7 +773,6 @@ function MatrixTab({
   monthLong,
   pointText,
   yen,
-  man,
   pct,
   deltaText,
   tone,
@@ -833,7 +826,7 @@ function MatrixTab({
     return {
       d: thin ? copy.newLabel : metric === "occupancy" ? (d === null ? copy.newLabel : pointText(v, value(prev))) : deltaText(d),
       tone: thin ? "z" : tone(d),
-      v: metric === "occupancy" ? pct(v) : metric === "adr" || metric === "revpar" ? yen(v) : man(v),
+      v: metric === "occupancy" ? pct(v) : metric === "adr" || metric === "revpar" ? yen(v) : yen(v),
     };
   };
 
@@ -1069,7 +1062,7 @@ function MatrixTab({
                         }}
                       />
                     </span>
-                    <span className="num">{man(room.m.revenue)}</span>
+                    <span className="num">{yen(room.m.revenue)}</span>
                     <span className="num faint">{room.m.occupancyPct.toFixed(0)}%</span>
                   </div>
                 ))}
