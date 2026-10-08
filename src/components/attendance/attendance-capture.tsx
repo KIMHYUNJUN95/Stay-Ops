@@ -32,6 +32,7 @@ import {
 } from "@/app/mobile/attendance/actions";
 import { extractAttendanceToken } from "@/lib/attendance-qr";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
+import { isNativeApp } from "@/lib/native-app";
 
 type AttendanceCopy = Dictionary["attendance"];
 
@@ -39,7 +40,36 @@ type Gps = { lat: number; lng: number; acc: number | null } | { error: "denied" 
 type Phase = "landing" | "scanning" | "submitting" | "result";
 type GpsStatus = "pending" | "ok" | "denied" | "unavailable";
 
+/**
+ * 앱(Capacitor) 안에서는 네이티브 위치 플러그인으로 읽는다(2026-10-08, 네이티브 품질 N2). WebView 의
+ * `navigator.geolocation` 은 OS 권한과 별도로 「stay-ops-two.vercel.app 이(가) 위치를 사용하려고 함」 같은 **웹 팝업**을
+ * 띄워 주소가 드러나고, iOS 는 앱을 켤 때마다 다시 묻는다. 플러그인은 앱 이름으로 묻는 OS 권한 팝업 한 번만 띄운다.
+ */
+async function getNativeGpsOnce(): Promise<Gps> {
+  try {
+    const { Geolocation } = await import("@capacitor/geolocation");
+    let perm = await Geolocation.checkPermissions();
+    if (perm.location !== "granted" && perm.coarseLocation !== "granted") {
+      perm = await Geolocation.requestPermissions({ permissions: ["location", "coarseLocation"] });
+    }
+    if (perm.location !== "granted" && perm.coarseLocation !== "granted") return { error: "denied" };
+    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy ?? null };
+  } catch {
+    // 권한 거부는 메시지로만 구분된다(플랫폼마다 문구가 다름) — 권한 상태를 다시 보고 판정한다.
+    try {
+      const { Geolocation } = await import("@capacitor/geolocation");
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location === "denied" && perm.coarseLocation === "denied") return { error: "denied" };
+    } catch {
+      // 무시 — 아래 unavailable
+    }
+    return { error: "unavailable" };
+  }
+}
+
 function getGpsOnce(): Promise<Gps> {
+  if (isNativeApp()) return getNativeGpsOnce();
   return new Promise((resolve) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       resolve({ error: "unavailable" });

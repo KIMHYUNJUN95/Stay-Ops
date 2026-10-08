@@ -168,10 +168,16 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 | `tel:` · `mailto:` | OS | Capacitor 가 OS 로 넘김(손대지 않음) |
 | Android 뒤로가기 버튼 | — | 오버레이 닫기 → 이전 화면 → 앱 최소화(`16-mobile-navigation.md`) |
 
-- 상태바 · 내비게이션 바: `capacitor.config.ts` `plugins.SystemBars` = `insetsHandling: "native"` + `initialViewportFitValueHint: "cover"`.
-  웹의 `viewport-fit=cover` · `env(safe-area-inset-*)` 가 그대로 쓰인다(Android 15+ edge-to-edge 대응).
-- 카메라 · 위치: Android 는 Capacitor WebChromeClient 가 웹 요청을 런타임 권한으로 바꿔 묻는다(매니페스트 권한 선언 완료). iOS 는 `Info.plist`
-  문구로 OS 팝업.
+- 상태바 · 내비게이션 바: `capacitor.config.ts` `plugins.SystemBars` = `insetsHandling: "native"` + `initialViewportFitValueHint: "cover"`
+  + `style: "LIGHT"`(어두운 아이콘). 웹의 `viewport-fit=cover` · `env(safe-area-inset-*)` 가 그대로 쓰인다(Android 15+ edge-to-edge 대응).
+  WebView 가 여백으로 밀리는 경우 상태바 뒤에 보이는 창 바탕은 `styles.xml` `android:windowBackground` = 아이보리 `#F7F4EE`
+  (기본 검정이라 상태바가 검게 보였다 — 네이티브 품질 N1). iOS 는 `NativeShellBridge` 가 `SystemBars.setStyle(Light)` 로 맞춘다.
+  **웹에 다크 팔레트가 생기면** 이 고정값들을 테마에 따라 바꿔야 한다.
+- 카메라: Android 는 Capacitor WebChromeClient 가 웹 요청을 런타임 권한으로 바꿔 묻고, iOS 는 Capacitor 가 WebView 요청을 승인해
+  `Info.plist` 문구의 OS 팝업만 뜬다.
+- 위치(N2, 2026-10-08): 앱에서는 `navigator.geolocation` 대신 **`@capacitor/geolocation`** 으로 읽는다(`attendance-capture.tsx`
+  `getNativeGpsOnce`). WebView 의 웹 위치 요청은 OS 권한과 별도로 「stay-ops-two.vercel.app wants to use your device's location」
+  웹 팝업을 띄웠다(iOS 는 앱을 켤 때마다). 브라우저 · PWA 는 그대로 Geolocation API.
 - 남은 확인: 서비스 워커(iOS WKWebView 는 App-Bound Domains 없이는 등록 안 됨 — 오프라인 대체 화면은 `capacitor-www`), 실기기 확인(B1-1).
 
 ### Android 첫 실행 (Windows + Android Studio, Mac 없음)

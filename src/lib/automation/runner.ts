@@ -864,9 +864,14 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
       loadDestinations(supabase, organizationId).then((all) => all[jobKey]),
       loadPropertyLabeler(supabase, organizationId),
     ]);
+    // 이미 알린 예약 × 채널은 **언어와 상관없이** 다시 보내지 않는다(2026-10-08 — 채널 언어를 ja → ko 로 바꾼 뒤 같은 예약이 다시
+    // 저장되자 한국어로 한 번 더 나갔다). 중복 방지 키는 언어까지 있어 그것만으로는 못 막는다. 이번 틱 이전의 이벤트 발송만 본다
+    // (같은 순간 여러 언어로 나가는 것은 그대로, 「지금 보내기」 시험은 판단에서 뺀다).
+    const alreadySent = await loadSentEventPairs(supabase, organizationId, jobKey, matches.map((item) => item.id), now);
     let failed = 0;
     for (const reservation of matches) {
       for (const destination of destinations) {
+        if (alreadySent.has(`${reservation.id}|${destination.channelKey}`)) continue;
         for (const locale of destination.locales) {
           const alert = await buildAlert(supabase, organizationId, jobKey, reservation, locale, labeler);
           const result = await deliver(supabase, {
@@ -893,6 +898,36 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
   if (nextCursor !== job.eventCursor) await updateJobState(supabase, organizationId, jobKey, { event_cursor: nextCursor });
   if (rows.length === 0) return retried > 0 ? `idle:retried:${retried}` : "idle";
   return `scanned:${rows.length}:${matches.length}${retried > 0 ? `:retried:${retried}` : ""}`;
+}
+
+/** 이번 틱 전에 이벤트 알림으로 보낸 「예약 | 채널」 — 언어 무관 중복 방지. */
+async function loadSentEventPairs(
+  supabase: Client,
+  organizationId: string,
+  jobKey: AutomationJobKey,
+  reservationIds: string[],
+  now: Date,
+): Promise<Set<string>> {
+  const pairs = new Set<string>();
+  if (reservationIds.length === 0) return pairs;
+  const result = await supabase
+    .from("automation_runs")
+    .select("channel_key, rid:meta->>reservationId")
+    .eq("organization_id", organizationId)
+    .eq("job_key", jobKey)
+    .eq("trigger", "event")
+    .eq("status", "sent")
+    .in("meta->>reservationId", reservationIds)
+    .lt("created_at", now.toISOString());
+  if (result.error) {
+    // 읽지 못하면 막지 않는다 — 언어별 중복 방지 키는 그대로 있다.
+    console.error("[automation] sent pair read failed", { code: result.error.code, job: jobKey });
+    return pairs;
+  }
+  for (const row of (result.data ?? []) as unknown as Array<{ channel_key: string | null; rid: string | null }>) {
+    if (row.rid && row.channel_key) pairs.add(`${row.rid}|${row.channel_key}`);
+  }
+  return pairs;
 }
 
 // ── 1분 틱 ────────────────────────────────────────────────────────────────

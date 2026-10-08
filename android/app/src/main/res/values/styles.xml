@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- 상태바 · 내비게이션 바 뒤(WebView 가 여백으로 밀릴 때 보이는 창 바탕)를 앱 배경 아이보리로 — 기본값은 검정이라 상태바가 검게 보였다(N1) -->
+        <item name="android:windowBackground">#F7F4EE</item>
     </style>
 
 

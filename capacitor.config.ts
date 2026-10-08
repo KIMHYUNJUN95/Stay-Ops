@@ -36,6 +36,8 @@ const config: CapacitorConfig = {
     SystemBars: {
       insetsHandling: "native",
       initialViewportFitValueHint: "cover",
+      // 웹은 늘 밝은 아이보리 화면이다 → 상태바 아이콘은 어둡게(LIGHT = 밝은 바탕용). 기기 다크 모드여도 앱 화면은 밝으므로 따라가지 않는다(N1).
+      style: "LIGHT",
     },
   },
 };
