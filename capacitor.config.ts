@@ -16,6 +16,8 @@ const config: CapacitorConfig = {
   appId: "com.harutokyo.stayops",
   appName: "StayOps",
   webDir: "capacitor-www",
+  // 웹이 그려지기 전 WebView 바탕 — 기본 흰색이면 시작 화면(아이보리) → 흰 화면 → 웹(아이보리)으로 깜빡인다(N11).
+  backgroundColor: "#F7F4EE",
   server: {
     url: serverUrl,
     cleartext: false,
