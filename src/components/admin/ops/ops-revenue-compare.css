@@ -15,11 +15,8 @@
   padding: 18px 20px 28px;
   margin: -6px -8px 0;
   border-radius: 18px;
+  /* 배경 모눈은 뺐다(2026-10-08 사용자 — 「뒤의 십자 선은 없애자」). 아이보리 바탕만. */
   background-color: hsl(42 36% 95%);
-  background-image:
-    linear-gradient(hsl(40 18% 88% / 0.55) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(40 18% 88% / 0.55) 1px, transparent 1px);
-  background-size: 48px 48px;
 }
 .adm .orc .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
