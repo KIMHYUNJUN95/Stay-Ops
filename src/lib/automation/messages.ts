@@ -503,7 +503,7 @@ export type AlertCard = {
   header: string;
   /**
    * 본문 줄 — 한 줄에 칸 1 ~ 2개. Slack 폰 앱은 `section.fields` 를 2열이 아니라 **세로 1열로 쌓아** 목록처럼 보였다
-   * (2026-10-08 iPhone 캡처). 그래서 칸 대신 「*이름* 값　*이름* 값」 줄로 — 폰에서도 확실히 나란히, 일본어도 한 줄(약 21자)에 들게.
+   * (2026-10-08 iPhone 캡처). 그래서 칸 대신 줄로 — 항목마다 한 줄, 묶음(방 · 채널 / 숙박 / 금액 · 인원) 사이는 빈 줄.
    */
   rows: Array<Array<{ label: string; value: string }>>;
   /** 작은 회색 줄 — 게스트 · 예약 번호 · 취소 시각. */
@@ -598,15 +598,16 @@ export function buildReservationAlertCard(input: AlertInput): AlertCard {
   };
 }
 
+/** 묶음 하나 = 항목마다 한 줄(2026-10-08 사용자 결정 — 「묶음별로 빈 줄」). 묶음 사이는 빈 줄로 가른다. */
 function rowLine(row: Array<{ label: string; value: string }>, escape: (value: string) => string, bold: boolean): string {
-  return row.map((cell) => (bold ? `*${escape(cell.label)}* ${escape(cell.value)}` : `${cell.label} ${cell.value}`)).join("　");
+  return row.map((cell) => (bold ? `*${escape(cell.label)}* ${escape(cell.value)}` : `${cell.label} ${cell.value}`)).join("\n");
 }
 
 /** 카드 → Slack Block Kit. 제목(header) · 2열 칸(section fields) · 회색 줄(context) · 링크 줄. */
 export function alertCardBlocks(card: AlertCard): Array<Record<string, unknown>> {
   const blocks: Array<Record<string, unknown>> = [
     { text: { emoji: true, text: card.header.slice(0, 150), type: "plain_text" }, type: "header" },
-    { text: { text: card.rows.map((row) => rowLine(row, escapeMrkdwn, true)).join("\n"), type: "mrkdwn" }, type: "section" },
+    { text: { text: card.rows.map((row) => rowLine(row, escapeMrkdwn, true)).join("\n\n"), type: "mrkdwn" }, type: "section" },
     { elements: [{ text: escapeMrkdwn(card.context), type: "mrkdwn" }], type: "context" },
   ];
   if (card.link) blocks.push({ text: { text: `*<${card.link.url}|${escapeMrkdwn(card.link.label)} ›>*`, type: "mrkdwn" }, type: "section" });
@@ -617,7 +618,9 @@ export function alertCardBlocks(card: AlertCard): Array<Record<string, unknown>>
 export function alertCardText(card: AlertCard): string {
   return [
     card.header,
-    ...card.rows.map((row) => rowLine(row, (value) => value, false)),
+    "",
+    card.rows.map((row) => rowLine(row, (value) => value, false)).join("\n\n"),
+    "",
     card.context,
     ...(card.link ? [`${card.link.label}: ${card.link.url}`] : []),
   ].join("\n");

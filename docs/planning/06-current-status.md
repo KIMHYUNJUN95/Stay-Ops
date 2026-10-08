@@ -29,7 +29,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-10-08 — 취소 · 당일예약 카드: 제목 건물만 · 방은 아래 · 칸은 줄로
 
-- Slack 폰 앱이 2열 칸을 세로로 쌓아 목록처럼 보이던 것 — 「*객실* AB401　*채널* Airbnb」 같은 줄로. 제목은 건물만, 방 코드는 아래 객실 칸. (`36` 「Slack 카드」)
+- Slack 폰 앱이 2열 칸을 세로로 쌓아 목록처럼 보이던 것 — 항목마다 한 줄, 묶음(방 · 채널 / 숙박 / 금액 · 인원) 사이 빈 줄. 제목은 건물만, 방 코드는 아래 객실 칸. (`36` 「Slack 카드」)
 
 ## 2026-10-07 — 취소 · 당일예약 알림 = Slack 카드
 

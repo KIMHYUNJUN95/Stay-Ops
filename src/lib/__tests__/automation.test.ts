@@ -293,7 +293,7 @@ describe("취소 · 당일예약 알림", () => {
       roomLabel: "AA302",
       today: "2026-10-06",
     });
-    // 제목은 건물만, 객실은 아래 줄(2026-10-08). 폰에서 칸이 세로로 쌓이지 않게 한 줄에 두 칸.
+    // 제목은 건물만, 객실은 아래 줄(2026-10-08).
     expect(card.header).toBe("❌ 취소 · 아라키초A");
     expect(card.rows).toEqual([
       [{ label: "객실", value: "AA302" }, { label: "채널", value: "Airbnb" }],
@@ -304,7 +304,8 @@ describe("취소 · 당일예약 알림", () => {
     expect(card.notify).toBe("❌ 취소 · 아라키초A AA302 · 10/20~22 · ¥86,400");
     const blocks = alertCardBlocks(card);
     expect(blocks.map((block) => block.type)).toEqual(["header", "section", "context", "section"]);
-    expect(JSON.stringify(blocks[1])).toContain("*객실* AA302　*채널* Airbnb\\n*숙박* 10/20(화) → 22(목) · 2박\\n*취소 금액* ¥86,400　*인원* 3명(아동 1)");
+    // 항목마다 한 줄, 묶음 사이 빈 줄(2026-10-08).
+    expect(JSON.stringify(blocks[1])).toContain("*객실* AA302\\n*채널* Airbnb\\n\\n*숙박* 10/20(화) → 22(목) · 2박\\n\\n*취소 금액* ¥86,400\\n*인원* 3명(아동 1)");
     expect(JSON.stringify(blocks)).not.toContain('"fields"');
     // 버튼이 아니라 링크 줄(우리 Slack 앱은 Interactivity 주소가 없다).
     expect(JSON.stringify(blocks[3])).toContain("<https://example.test/go/reservation/1|StayOps 에서 열기 ›>");
@@ -326,8 +327,8 @@ describe("취소 · 당일예약 알림", () => {
     expect(sameDay.rows[1]).toEqual([{ label: "宿泊", value: "本日 9/30(水) → 10/2(金) · 2泊" }]);
     expect(sameDay.rows[2]).toEqual([{ label: "金額", value: "¥23,413" }, { label: "人数", value: "4名" }]);
     expect(sameDay.notify).toBe("🟢 当日予約 · STAY ARI Apartment Hotel 305 · 9/30~10/2 · ¥23,413");
-    // 일본어도 폰 한 줄(약 21자)에 — 줄마다 칸 이름 · 값 합이 짧다.
-    for (const row of sameDay.rows) expect(row.map((cell) => `${cell.label} ${cell.value}`).join("　").length).toBeLessThanOrEqual(30);
+    // 일본어도 폰 한 줄(약 21자)에 — 항목 한 줄이 짧다.
+    for (const row of sameDay.rows) for (const cell of row) expect(`${cell.label} ${cell.value}`.length).toBeLessThanOrEqual(30); // 숫자 · 기호는 반각이라 화면 폭은 더 좁다
     expect(sameDay.link).toBeNull();
     const blocks = alertCardBlocks(sameDay);
     expect(blocks).toHaveLength(3);
