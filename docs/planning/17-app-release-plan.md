@@ -32,10 +32,13 @@
 ## 브랜드 교체 예정 (2026-10-08 사용자 공지)
 
 > **로고를 완전히 다른 로고로, 앱 이름도 새로 바꾼다.** 새 이름 · 로고가 정해지면 아래를 한 번에 바꾼다. 그 전까지 아이콘 · 이름은 임시다.
+>
+> **2026-10-09 로고 확정 · 교체 완료** — 「접힌 리넨」(라벤더 바탕 + 보라 막대 세 겹). 앱 · PWA · 시작 화면 · 스토어 이미지 전부 새 로고.
+> 시안은 디자인 캔버스(https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h)에 보관. **앱 이름은 아직** — 아래 「앱 표시 이름」 이하 그대로 남음.
 
 | 항목 | 바꿀 곳 | 비고 |
 | --- | --- | --- |
-| 새 로고 받기 (👤) | **1024px 이상 정사각 PNG**(투명 없음 — iOS), 가능하면 **SVG**. Android 적응형용 **배경 / 그림 분리본**이 있으면 가장 좋다 | 받으면 `generate-app-icons.mjs` 원본만 바꿔 앱 · 시작 화면 · 스토어 이미지 일괄 재생성. PWA `public/icons` · `favicon.ico` 도 같이 |
+| ~~새 로고 받기~~ ✅ 2026-10-09 | 벡터로 정의(`generate-app-icons.mjs` `BG` · `MARK` → `public/brand/logo.svg` · `logo-mark.svg`). 적응형은 배경(라벤더) / 그림(막대) 분리 | 앱 · 시작 화면 · 스토어 · PWA `public/icons` · `favicon.ico` · `public/splash` 일괄 재생성 완료 |
 | 앱 표시 이름 | `capacitor.config.ts` `appName` · Android `strings.xml` `app_name`/`title_activity_main` · iOS `CFBundleDisplayName` · PWA `manifest*.webmanifest` | 홈 화면 아이콘 아래 이름. 스토어 등록 전까지 자유롭게 바꿀 수 있다 |
 | 화면 문구 | `src/lib/i18n.ts`(ko/ja/en, 「StayOps」 36곳) · 웹 시작 화면 · 헤더 워드마크(「Stay Ops」) · `src/` 기타 53개 파일 | 3개 언어 함께 |
 | 법적 문서 · 스토어 문구 | `src/lib/legal-content.ts`(24곳) · `18-store-review-kit.md` · 지원 페이지 · iOS 권한 문구(`*.lproj/InfoPlist.strings`) | 방침 · 약관의 서비스 이름 |
@@ -58,7 +61,7 @@
 | B1 | **Capacitor 골격** (iOS · Android 프로젝트, 앱 ID, 권한 설정) | 🤖 | [x] 2026-10-06 | `capacitor.config.ts` · `android/` · `ios/`. 앱은 배포된 웹을 띄운다. 빌드 방법: `03-deployment-strategy.md` 「앱 빌드」 |
 | B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [~] 2026-10-08 Pixel 8 에뮬레이터(API 35)에서 설치 · 실행 · 로그인 → 모바일 홈(판매 캘린더) 정상. 남은 확인: 출퇴근 QR 권한 · 다운로드 · 외부 링크 · 뒤로가기 · 연결 실패 화면. 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 → 연결 실패 화면(비행기 모드) → 새 아이콘 · 시작 화면 |
 | B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [~] 2026-10-07 서명 없는 시뮬레이터 빌드 확인 워크플로 · 서명 · TestFlight 업로드는 A2 후 | `.github/workflows/ios-build-check.yml` — iOS 파일이 바뀌면 macOS 러너에서 컴파일 확인. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
-| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 (+👤 원본) | [~] 2026-10-08 **실제 로고(회색 문)로 다시 생성** — 10-07 판은 옛 남색 "S" 임시 마크라 브랜드가 틀렸다. 남은 것: 👤 **1024px 이상 로고 원본**(지금은 512 를 2배로 늘린 App Store 아이콘) | `node scripts/dev/generate-app-icons.mjs [원본]`. `03` 「아이콘 · 스플래시」 |
+| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 (+👤 원본) | [x] 2026-10-09 **새 로고(접힌 리넨)로 벡터에서 생성** — 1024 스토어 아이콘도 선명. 남은 것: 실기기에서 홈 화면 아이콘 · 시작 화면 확인(재설치 필요) | `node scripts/dev/generate-app-icons.mjs [원본]`. `03` 「아이콘 · 스플래시」 |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
 | B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [x] 2026-10-08 N10 수정(`b77cffc` · `9c5167d`) 후 에뮬레이터에서 Google 로그인 → 앱 복귀 → 앱 화면(주소창 없음) 확인 | 위쪽에 주소 · X 버튼이 보이면 앱이 아니라 앱 안 브라우저 |
@@ -172,3 +175,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-08 | (이 커밋) | 브랜드(로고 · 앱 이름) 교체 예정 기록 · 바꿀 곳 목록 |
 | 2026-10-08 | (이 커밋) | N12 화면 스와이프 뒤로가기 — 웹 엔진 · 충돌 정리 · 뒤로 전환 방향 |
 | 2026-10-09 | (이 커밋) | N12 아이폰 홈 화면 앱 「반응 없음」 진단 — 세 손가락 탭 진단 표시(빌드 · 받음/안 받음 이유) |
+| 2026-10-09 | (이 커밋) | 브랜드 로고 교체 — 「접힌 리넨」(앱 · PWA · 시작 화면 · 스토어 이미지 · favicon), 벡터 원본 `public/brand/logo.svg` |

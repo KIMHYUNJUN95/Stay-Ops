@@ -1,17 +1,19 @@
 /**
- * iOS · Android 앱 아이콘 · 시작 화면 생성 (계획 B1-2, docs/planning/17-app-release-plan.md).
+ * 브랜드 로고 → 앱 · PWA 아이콘 · 시작 화면 일괄 생성 (계획 B1-2, docs/planning/17-app-release-plan.md).
  *
- * **원본 = 실제 제품 로고 `public/icons/icon-512.png`(회색 종이 질감 위 열린 문, 2026-06-23 교체).** PWA · 오프라인 화면과 같은 그림이다.
- * 2026-10-07 첫 버전은 옛 `generate-pwa-icons.mjs` 의 남색 "S" 임시 마크로 만들어 브랜드가 틀렸다 — 2026-10-08 실제 로고로 다시 만든다.
+ * **원본 = 이 파일의 SVG 정의**(2026-10-09 「접힌 리넨」 로고로 교체 — 라벤더 바탕 위 보라 3톤 둥근 막대 세 겹).
+ * 벡터에서 바로 그리므로 크기마다 선명하다. 시안 캔버스: https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h (13 Folded Linen).
+ * 로고를 바꿀 때는 아래 `BG` · `MARK` 만 고치고 다시 돌린 뒤 `node scripts/gen-splash.mjs` 도 돌린다.
  *
- *   node scripts/dev/generate-app-icons.mjs [원본.png]
- *
- * 원본이 512px 라 App Store 1024 아이콘은 2배로 늘린 것이다(약간 흐림). **1024px 이상 원본이 생기면 인자로 넘겨 다시 돌린다.**
+ *   node scripts/dev/generate-app-icons.mjs
  *
  * 만드는 것:
+ * - 원본 SVG `public/brand/logo.svg`(바탕 포함 정사각) · `public/brand/logo-mark.svg`(막대만, 투명)
+ * - PWA `public/icons/icon-192.png` · `icon-512.png`(둥근 네모, 모서리 투명) · `maskable-512.png`(꽉 찬 바탕, 안전 영역 안 로고)
+ *   · `apple-touch-icon.png`(180, 알파 없음) · `public/favicon.ico`(16 · 32 · 48)
  * - iOS   `AppIcon.appiconset/AppIcon-512@2x.png` (1024, 알파 없음 — App Store 규칙. 모서리는 iOS 가 자기 곡률로 잘라낸다)
  * - iOS   `Splash.imageset/splash-2732x2732*.png` (아이보리 바탕 + 가운데 로고, LaunchScreen 이 aspectFill)
- * - Android `mipmap-*` ic_launcher(둥근 네모) · ic_launcher_round(원) · 적응형 ic_launcher_foreground(로고) + ic_launcher_background(회색)
+ * - Android `mipmap-*` ic_launcher(둥근 네모) · ic_launcher_round(원) · 적응형 ic_launcher_foreground(막대) + ic_launcher_background(라벤더)
  * - Android `drawable-nodpi/splash_icon.png` — Android 12+ 시작 화면 아이콘(960px, 240dp 로 그려지므로 크게)
  * - `capacitor-www/icon.png` — 앱 연결 실패 화면 로고
  * - 스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png`
@@ -22,11 +24,29 @@ import path from "node:path";
 import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const SOURCE = path.resolve(root, process.argv[2] ?? "public/icons/icon-512.png");
 
 const IVORY = "#f7f4ee";
-// 로고 가장자리 회색(종이 질감의 어두운 테두리 쪽). 적응형 아이콘 배경 · 알파를 없앨 때 바탕으로 쓴다.
-const LOGO_EDGE = "#8f8d8d";
+/** 로고 바탕(라벤더). Android 적응형 배경 층 · 시작 화면 아이콘 원 색(`styles.xml`)과 같아야 한다. */
+const BG = "#EFE7FF";
+/** 막대 세 겹(아래 → 위). viewBox 0 0 100 100 기준. */
+const MARK = `<rect x="18" y="62" width="64" height="17" rx="8.5" fill="#5B2BD6"/><rect x="25" y="43" width="50" height="17" rx="8.5" fill="#8A63F0"/><rect x="32" y="24" width="36" height="17" rx="8.5" fill="#B9A0FA"/>`;
+/** 둥근 네모 곡률(한 변 대비). iOS 마스크(약 22%)와 비슷하게. */
+const RADIUS = 0.225;
+
+/**
+ * size px 정사각 SVG. markScale = 막대를 가운데 기준으로 줄이는 비율(적응형 · maskable 안전 영역용).
+ * rounded = 모서리를 투명하게 깎을지, background = 바탕을 깔지.
+ */
+function svg(size, { markScale = 1, rounded = false, background = true } = {}) {
+  const r = rounded ? 100 * RADIUS : 0;
+  const t = (1 - markScale) * 50;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100">${
+    background ? `<rect width="100" height="100" rx="${r}" ry="${r}" fill="${BG}"/>` : ""
+  }<g transform="translate(${t} ${t}) scale(${markScale})">${MARK}</g></svg>`;
+}
+
+const png = (size, opts) => sharp(Buffer.from(svg(size, opts))).png().toBuffer();
+const opaque = async (size, opts) => sharp(await png(size, opts)).flatten({ background: BG }).png().toBuffer();
 
 async function out(rel, buf) {
   const file = path.join(root, rel);
@@ -35,37 +55,11 @@ async function out(rel, buf) {
   console.log("wrote", rel);
 }
 
-/**
- * 깨끗한 원본: 512 내보내기의 모서리에 반투명 검정 테두리가 남아 있어(모서리 픽셀 rgba(0,0,0,221)) 둥근 네모 마스크로 한 번 더 깎는다.
- * 결과 = 투명 바탕 위 둥근 네모 로고(1024 기준).
- */
-async function cleanMaster(size = 1024) {
-  // 바깥 3% 를 잘라낸다 — 512 원본 테두리에 어두운 테 · 검은 잔여가 둘러 있다.
-  const over = Math.round(size * 1.06);
-  const cut = Math.round((over - size) / 2);
-  const base = await sharp(SOURCE)
-    .resize(over, over, { kernel: "lanczos3" })
-    .extract({ left: cut, top: cut, width: size, height: size })
-    .ensureAlpha()
-    .png()
-    .toBuffer();
-  const r = Math.round(size * 0.185); // 원본 곡률(약 80/512)보다 살짝 크게 — 검은 테두리를 남기지 않는다
-  const mask = Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect x="0" y="0" width="${size}" height="${size}" rx="${r}" ry="${r}" fill="#fff"/></svg>`,
-  );
-  return sharp(base).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
-}
-
-/** 정사각 캔버스(투명 또는 단색) 가운데에 로고를 scale 비율로 얹는다. */
-async function onCanvas(master, size, scale, background = { r: 0, g: 0, b: 0, alpha: 0 }) {
+/** 정사각 캔버스 가운데에 그림을 scale 비율로 얹는다. */
+async function onCanvas(image, size, scale, background = { r: 0, g: 0, b: 0, alpha: 0 }) {
   const inner = Math.round(size * scale);
-  let logo = await sharp(master).resize(inner, inner, { kernel: "lanczos3" }).png().toBuffer();
-  if (inner > size) {
-    // 캔버스보다 크게 → 가운데만 잘라 쓴다(원형 아이콘에서 로고 모서리 곡선이 보이지 않게).
-    const cut = Math.floor((inner - size) / 2);
-    logo = await sharp(logo).extract({ left: cut, top: cut, width: size, height: size }).png().toBuffer();
-  }
-  const off = Math.max(0, Math.round((size - inner) / 2));
+  const logo = await sharp(image).resize(inner, inner, { kernel: "lanczos3" }).png().toBuffer();
+  const off = Math.round((size - inner) / 2);
   return sharp({ create: { width: size, height: size, channels: 4, background } })
     .composite([{ input: logo, left: off, top: off }])
     .png()
@@ -80,13 +74,48 @@ async function circle(buf, size) {
   return sharp(buf).resize(size, size).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
 }
 
-const master = await cleanMaster(1024);
+/** PNG 여러 장을 하나의 .ico 로(PNG 내장 ICO — 모든 현역 브라우저가 읽는다). */
+function ico(images) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(images.length, 4);
+  let offset = 6 + 16 * images.length;
+  const entries = images.map(({ size, data }) => {
+    const e = Buffer.alloc(16);
+    e.writeUInt8(size >= 256 ? 0 : size, 0);
+    e.writeUInt8(size >= 256 ? 0 : size, 1);
+    e.writeUInt16LE(1, 4); // planes
+    e.writeUInt16LE(32, 6); // bpp
+    e.writeUInt32LE(data.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += data.length;
+    return e;
+  });
+  return Buffer.concat([header, ...entries, ...images.map((i) => i.data)]);
+}
+
+// 적응형 · maskable: 108dp 중 가운데 72dp 원만 보인다(안전 영역 66dp). 막대 바깥 모서리가 원 안에 들도록 72% 로 줄인다.
+const ADAPTIVE_MARK = 0.72;
+
+// ── 원본 SVG ─────────────────────────────────────────────────────────
+await out("public/brand/logo.svg", Buffer.from(svg(1024) + "\n"));
+await out("public/brand/logo-mark.svg", Buffer.from(svg(1024, { background: false }) + "\n"));
+
+// ── PWA · 웹 ─────────────────────────────────────────────────────────
+await out("public/icons/icon-192.png", await png(192, { rounded: true }));
+await out("public/icons/icon-512.png", await png(512, { rounded: true }));
+await out("public/icons/maskable-512.png", await opaque(512, { markScale: 0.8 }));
+await out("public/icons/apple-touch-icon.png", await opaque(180));
+await out(
+  "public/favicon.ico",
+  ico(await Promise.all([16, 32, 48].map(async (size) => ({ size, data: await png(size, { rounded: true }) })))),
+);
 
 // ── iOS ──────────────────────────────────────────────────────────────
-// 알파 없는 꽉 찬 정사각형. iOS 마스크 곡률(약 22%)이 로고 곡률(약 18.5%)보다 커서 바탕색 모서리는 잘려 보이지 않는다.
-const ios1024 = await sharp(master).flatten({ background: LOGO_EDGE }).png().toBuffer();
+const ios1024 = await opaque(1024);
 await out("ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png", ios1024);
-const iosSplash = await onCanvas(master, 2732, 0.16, IVORY);
+const iosSplash = await onCanvas(await png(1024, { rounded: true }), 2732, 0.16, IVORY);
 const iosSplashRgb = await sharp(iosSplash).flatten({ background: IVORY }).png().toBuffer();
 for (const name of ["splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"]) {
   await out(`ios/App/App/Assets.xcassets/Splash.imageset/${name}`, iosSplashRgb);
@@ -98,28 +127,27 @@ const res = "android/app/src/main/res";
 for (const [d, k] of Object.entries(densities)) {
   const legacy = Math.round(48 * k);
   const adaptive = Math.round(108 * k);
-  // 옛 런처(적응형 이전): 둥근 네모 그대로 · 원형.
-  await out(`${res}/mipmap-${d}/ic_launcher.png`, await onCanvas(master, legacy, 0.92));
-  await out(`${res}/mipmap-${d}/ic_launcher_round.png`, await circle(await onCanvas(master, legacy, 1.12, LOGO_EDGE), legacy));
-  // 적응형: 108dp 중 가운데 72dp 원만 보인다. 로고를 68%(73dp)로 얹으면 보이는 72dp 원이 로고 안쪽에 들어가 테두리 · 모서리는 안 보이고
-  // 문 전체가 여백을 두고 보인다(원형 옛 아이콘과 같은 구도). 바깥은 회색 배경 층.
-  await out(`${res}/mipmap-${d}/ic_launcher_foreground.png`, await onCanvas(master, adaptive, 0.68));
+  // 옛 런처(적응형 이전): 둥근 네모 · 원형.
+  await out(`${res}/mipmap-${d}/ic_launcher.png`, await onCanvas(await png(512, { rounded: true }), legacy, 0.92));
+  await out(`${res}/mipmap-${d}/ic_launcher_round.png`, await circle(await png(legacy, { markScale: 0.9 }), legacy));
+  // 적응형: 전경 = 막대만(투명), 배경 = 라벤더 단색.
+  await out(`${res}/mipmap-${d}/ic_launcher_foreground.png`, await png(adaptive, { markScale: ADAPTIVE_MARK, background: false }));
   await out(
     `${res}/mipmap-${d}/ic_launcher_background.png`,
-    await sharp({ create: { width: adaptive, height: adaptive, channels: 3, background: LOGO_EDGE } }).png().toBuffer(),
+    await sharp({ create: { width: adaptive, height: adaptive, channels: 3, background: BG } }).png().toBuffer(),
   );
 }
-// Android 12+ 시작 화면 아이콘(아이콘 배경색 = 로고 회색, styles.xml). 240dp 중 가운데 160dp 원만 보인다 — 적응형과 같은 비율.
-await out(`${res}/drawable-nodpi/splash_icon.png`, await onCanvas(master, 960, 0.68));
+// Android 12+ 시작 화면 아이콘(아이콘 원 색 = BG, styles.xml). 240dp 중 가운데 160dp 원만 보인다 — 적응형과 같은 비율.
+await out(`${res}/drawable-nodpi/splash_icon.png`, await png(960, { markScale: ADAPTIVE_MARK, background: false }));
 
-// 시작 테마는 더 이상 비트맵을 쓰지 않는다(N11) — 예전 Capacitor 기본 splash.png 들은 지운다.
+// 시작 테마는 비트맵을 쓰지 않는다(N11) — 예전 Capacitor 기본 splash.png 가 남아 있으면 지운다.
 for (const dir of ["drawable", ...["port", "land"].flatMap((o) => Object.keys(densities).map((d) => `drawable-${o}-${d}`))]) {
   await rm(path.join(root, res, dir, "splash.png"), { force: true });
 }
 
 // ── 연결 실패 화면 · 스토어 원본 ────────────────────────────────────────
-await out("capacitor-www/icon.png", await sharp(master).resize(192, 192).png().toBuffer());
+await out("capacitor-www/icon.png", await png(192, { rounded: true }));
 await out("store-assets/icon-1024.png", ios1024);
-await out("store-assets/play-icon-512.png", await sharp(ios1024).resize(512, 512).png().toBuffer());
+await out("store-assets/play-icon-512.png", await opaque(512));
 
 console.log("done");

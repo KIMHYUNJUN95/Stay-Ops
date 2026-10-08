@@ -220,15 +220,19 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 
 ### 아이콘 · 스플래시
 
-- **원본 = 제품 로고 `public/icons/icon-512.png`**(회색 종이 질감 위 열린 문 — PWA · 오프라인 화면과 같은 그림, 2026-06-23 교체 `fbb00a1`).
-  `node scripts/dev/generate-app-icons.mjs [원본]` 이 iOS `AppIcon`(1024, 알파 없음) · `Splash`, Android `mipmap-*`(옛 둥근 네모 · 원형 ·
-  적응형 = 회색 배경 층 + 로고 68% 전경) · `drawable-nodpi/splash_icon.png`(960px), 연결 실패 화면 `capacitor-www/icon.png`,
-  스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png` 를 만든다.
-  - 2026-10-07 첫 버전은 옛 `generate-pwa-icons.mjs` 의 남색 "S" 임시 마크로 만들어 **브랜드가 틀렸다**(2026-10-08 실제 로고로 교체).
-    그 옛 스크립트는 쓰지 않는다 — 돌리면 `public/icons` 를 옛 마크로 덮어쓴다.
-  - 원본이 512px 라 1024 스토어 아이콘은 2배 확대본이다. **1024px 이상 원본을 받으면 인자로 넘겨 다시 생성**(계획 B1-2).
-  - 512 원본 테두리에 어두운 테 · 반투명 검정 잔여가 있어 바깥 3% 를 잘라내고 둥근 네모로 다시 깎는다.
-- Android 시작 화면: `styles.xml` 의 `windowSplashScreen*` — 아이보리 바탕 + 가운데 원(아이콘 배경색 = 로고 회색 `#8F8D8D`) 안의 로고.
+- **원본 = 「접힌 리넨」 로고(2026-10-09 교체)** — 라벤더(`#EFE7FF`) 바탕 위 보라 3톤 둥근 막대 세 겹. 벡터 정의가
+  `scripts/dev/generate-app-icons.mjs` 안의 `BG` · `MARK` 에 있고, 돌리면 원본 SVG `public/brand/logo.svg`(바탕 포함) ·
+  `logo-mark.svg`(막대만)도 같이 써 준다. 시안 20종은 디자인 캔버스에 그대로 보관(13 Folded Linen 의 흰 줄 없는 판이 채택안).
+  `node scripts/dev/generate-app-icons.mjs` → `node scripts/gen-splash.mjs` 순서로 돌리면 다음을 모두 다시 만든다:
+  PWA `public/icons/*`(192 · 512 둥근 네모 · maskable 512 · apple-touch 180) · `public/favicon.ico`(16/32/48),
+  iOS `AppIcon`(1024, 알파 없음) · `Splash`, Android `mipmap-*`(옛 둥근 네모 · 원형 · 적응형 = 라벤더 배경 층 + 막대 72% 전경) ·
+  `drawable-nodpi/splash_icon.png`(960px), 연결 실패 화면 `capacitor-www/icon.png`, 스토어 원본 `store-assets/icon-1024.png` ·
+  `play-icon-512.png`, iOS PWA 시작 이미지 `public/splash/*`.
+  - 앱 안에서 로고를 쓰는 곳(웹 시작 화면 · 오프라인 · 404 · 오류 화면 · 관리자 사이드바 마크 · 로그인 브랜드 마크 · 자동화 아바타)은
+    전부 `public/icons/icon-192.png` 를 읽으므로 따로 고칠 곳이 없다.
+  - 벡터에서 바로 그리므로 1024 스토어 아이콘도 선명하다(예전 회색 문 로고는 512 를 2배로 늘린 것이었다).
+  - 옛 `generate-pwa-icons.mjs`(남색 "S" 임시 마크)는 쓰지 않는다 — 돌리면 `public/icons` 를 옛 마크로 덮어쓴다.
+- Android 시작 화면: `styles.xml` 의 `windowSplashScreen*` — 아이보리 바탕 + 가운데 원(아이콘 배경색 = 로고 라벤더 `#EFE7FF`) 안의 막대.
   core-splashscreen 이 Android 7~11 에도 같은 모양으로 그린다. 시작 화면 아이콘은 240dp 로 그려지므로 960px(`drawable-nodpi`).
 - `drawable*/splash.png` 비트맵은 **없앴다**: 시작 테마 `android:background` 로 깔았더니 화면 비율에 맞지 않게 늘어나 로고가 잠깐 엉뚱한
   위치에 보였다(N11). 시작 테마 바탕 · WebView 바탕(`capacitor.config.ts` `backgroundColor`)은 아이보리 단색.

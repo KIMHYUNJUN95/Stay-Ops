@@ -9,6 +9,18 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
+
+- 로고 시안 20종 · 이름 후보를 디자인 캔버스로 만들고(보관: https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h) 사용자가 13번 「접힌 리넨」을
+  골랐다(흰 줄 없는 판). 회색 「열린 문」을 대체.
+- `scripts/dev/generate-app-icons.mjs` 를 벡터 원본 기준으로 다시 써서 PWA `public/icons/*` · `favicon.ico` · iOS 앱 아이콘 · 시작 화면 ·
+  Android `mipmap-*` · 적응형(라벤더 배경 + 막대 전경) · Android 12 시작 화면 아이콘 · 연결 실패 화면 · 스토어 원본을 한 번에 생성,
+  `gen-splash.mjs` 로 iOS PWA 시작 이미지도 다시. Android 시작 화면 아이콘 원 색 `#8F8D8D` → `#EFE7FF`(`styles.xml`).
+- 앱 안 로고(웹 시작 화면 · 오프라인 · 404 · 오류 · 관리자 사이드바 · 로그인)는 `icon-192.png` 를 읽어 자동으로 바뀜.
+  `sw.js` 가 `/icons` 를 cache-first 로 두므로 `STATIC_CACHE` 를 v2 → v3 로 올려 기존 기기도 새 아이콘을 받게 했다.
+- 앱 이름(「StayOps」)은 아직 그대로 — 17번 「브랜드 교체 예정」.
+- 남은 확인: 앱 재설치 후 실기기 홈 화면 아이콘 · 시작 화면(네이티브 그림).
+
 ## 2026-10-08 — 모바일 화면 스와이프 뒤로가기 (1 · 2단계)
 
 - 화면 어디서든 오른쪽으로 밀면 뒤로 — 지금 화면이 손가락을 따라 밀리고 이전 화면(떠날 때 DOM 복제)이 iOS 처럼 30% 뒤에서 따라 들어온다.
