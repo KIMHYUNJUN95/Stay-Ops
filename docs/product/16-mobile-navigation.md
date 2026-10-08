@@ -150,6 +150,9 @@ Implementation note:
     층은 `body` 맨 끝 `position: fixed; z-index: -1; contain: strict` 로 **한가할 때 미리 깔아 두고**(보이지 않게) 밀 때 보이게만 한다
     (드래그 시작 1ms). 미는 동안만 `<main>` · `<body>` 바탕을 투명하게 해 판 뒤로 이 층이 보인다. 이동은 `history.go(-n)`, 옛 판이
     DOM 에서 빠지는 순간(MutationObserver — 그리기 전) 층을 걷는다. 4초 안에 이동이 안 되면 제자리로.
+  - **iOS(WebKit) 팬 선점 (2026-10-08 `c5cdf12`)**: iOS 는 방향 판정(10px) 전에 스크롤 팬을 시작해, 그 뒤 touchmove 를 막을 수 없어
+    아이폰에서 제스처가 통째로 무시됐다(Chromium 은 `touch-action` 이 막아 재현 안 됨). 판정 전이라도 오른쪽으로 뚜렷이 가로인 움직임
+    (dx > 1.5|dy|)이면 첫 touchmove 부터 막고, 막을 수 없는 touchmove 여도 가로로 잠갔으면 계속 간다.
   - 순수 판정(`history-model.ts` — 갈 곳 · 방향 잠금 · 놓을 때 판정 · 마무리 시간)은 `src/lib/__tests__/swipe-back.test.ts`.
   - 셸: 스크롤 영역에 `touch-action: pan-y pinch-zoom`(가로 이동은 브라우저가 쓰지 않아 touchmove 를 언제나 막을 수 있다), 스크롤
     위치 복원을 `useLayoutEffect` 로(첫 프레임부터 밑그림과 같은 자리).
