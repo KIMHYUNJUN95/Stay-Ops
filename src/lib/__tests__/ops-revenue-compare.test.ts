@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyCell, type RevenueCell } from "@/lib/ops-revenue";
-import { bridgeScale, buildBridge, groupProperties, growthDrivers, niceUnit, topMover } from "@/lib/ops-revenue-compare";
+import { bridgeScale, buildBridge, findNewRooms, groupProperties, growthDrivers, newRoomShare, niceUnit, topMover } from "@/lib/ops-revenue-compare";
 
 const cell = (revenue: number, occupied = revenue > 0 ? 10 : 0): RevenueCell => ({ ...emptyCell(), availableNights: 30, occupiedNights: occupied, revenue });
 
@@ -96,5 +96,33 @@ describe("growthDrivers", () => {
     const { drivers } = growthDrivers(groupProperties(["x"], a, b), a, b);
     expect(drivers.find((d) => d.key === "volume")?.value).toBe(1000);
     expect(drivers.find((d) => d.key === "price")).toBeUndefined();
+  });
+});
+
+describe("새 객실(기존 건물) — 건물 숫자는 그대로, 몫만 떼어 낸다", () => {
+  const rooms = { 가부키초: [{ key: "K::802", label: "802" }, { key: "K::803", label: "803" }] };
+  const first = { "K::802": "2024-06-01", "K::803": "2025-10-31" };
+  it("첫 판매일이 B 끝 뒤 · A 끝까지인 방만", () => {
+    expect(findNewRooms(["가부키초"], rooms, first, "2025-09-30", "2026-09-30").map((r) => r.label)).toEqual(["803"]);
+    expect(findNewRooms(["가부키초"], rooms, first, "2025-11-30", "2026-09-30")).toEqual([]);
+    // A 가 B 보다 앞이면 없다
+    expect(findNewRooms(["가부키초"], rooms, first, "2026-09-30", "2025-09-30")).toEqual([]);
+  });
+  it("브리지 · 기여 막대 — 새 객실 단계가 생기고 합계는 같다", () => {
+    const a = { 가부키초: cell(1_000_000, 50) };
+    const b = { 가부키초: cell(700_000, 40) };
+    const aRooms = { "K::802": cell(800_000, 40), "K::803": cell(200_000, 10) };
+    const bRooms = { "K::802": cell(700_000, 40) };
+    const share = newRoomShare(findNewRooms(["가부키초"], rooms, first, "2025-09-30", "2026-09-30"), aRooms, bRooms);
+    const g = groupProperties(["가부키초"], a, b);
+    const steps = buildBridge(g, a, b, 3, share);
+    expect(steps.map((s) => s.role)).toEqual(["totalB", "existing", "newRooms", "totalA"]);
+    expect(steps[1].to - steps[1].from).toBe(100_000); // 802 만의 변화
+    expect(steps[2].to - steps[2].from).toBe(200_000); // 803
+    expect(steps[2].to).toBe(1_000_000);
+    const d = growthDrivers(g, a, b, share);
+    expect(d.drivers.map((x) => x.key)).toEqual(["price", "newRooms"]); // 802 판매 박 같음(40) → 판매 박 효과 0
+    expect(d.drivers.reduce((sum, x) => sum + x.value, 0)).toBe(300_000);
+    expect(d.total).toBe(300_000);
   });
 });

@@ -15,7 +15,7 @@ import {
   type RevenueRange,
 } from "@/lib/ops-revenue";
 import { shiftMonthKey } from "@/components/admin/shared/admin-month-key";
-import { buildOpsSalesSummary, defaultSalesExcluded, type SalesRawPayload } from "@/lib/ops-sales-summary";
+import { buildOpsSalesSummary, defaultSalesExcluded, isSalesCountedReservation, type SalesRawPayload } from "@/lib/ops-sales-summary";
 import type { AppSession } from "@/lib/session";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -170,7 +170,20 @@ export type OpsRevenueCompareData = {
   /** 건물 → 칸. 기간을 달로 잘라 요약한 합(문 열기 전 규칙은 달마다). */
   aCells: OpsRevenueCells;
   bCells: OpsRevenueCells;
+  /** 객실 행 키 → 칸(같은 식). 「기존 건물의 새 객실」을 떼어 내는 데만 쓴다 — 건물 숫자는 `aCells` · `bCells` 그대로. */
+  aRoomCells: OpsRevenueCells;
+  bRoomCells: OpsRevenueCells;
+  /** 건물 → 객실 행(캘린더 행 키 · 이름, 듀얼 유닛 = 한 행). */
+  rooms: Record<string, Array<{ key: string; label: string }>>;
+  /**
+   * 객실 행 키 → 첫 판매일(그 방의 확정 예약 중 가장 이른 체크인). 우리 예약 기록이 시작된 2024-05 보다 앞서 연 방은
+   * 그 시작 무렵 날짜다 — 「처음부터 있던 방」으로 읽힌다.
+   */
+  roomFirstSale: Record<string, string>;
 };
+
+/** 객실 첫 판매일을 찾으려고 읽는 가장 이른 날 — 우리 예약 기록 전부(2024-05~)를 덮는다. */
+const COMPARE_HISTORY_START = "2022-01-01";
 
 /**
  * 매출 비교 — 두 기간 A · B 를 같은 읽기 · 같은 식으로(2026-10-08, 시안 「매출 비교」 1번 v4).
@@ -184,22 +197,39 @@ export async function getOpsRevenueCompareData(
   const aPieces = splitByMonth(args.a.range);
   const bPieces = splitByMonth(args.b.range);
   const everything: Piece[] = [...aPieces, ...bPieces];
+  // 창을 예약 기록 처음까지 넓힌다 — 객실 첫 판매일 때문. 기간 밖 예약은 조각에서 잘려 기간 숫자는 그대로다.
   const window = {
     endExclusive: everything.reduce((max, piece) => (piece.endExclusive > max ? piece.endExclusive : max), everything[0].endExclusive),
-    start: everything.reduce((min, piece) => (piece.start < min ? piece.start : min), everything[0].start),
+    start: COMPARE_HISTORY_START,
   };
-  const { inputs, summarize } = await createRevenueSummarizer(session, window, today);
-  const sum = (pieces: Piece[]) => {
+  const { inputs, reservations, summarize } = await createRevenueSummarizer(session, window, today);
+  const sum = (pieces: Piece[], level: "properties" | "rooms") => {
     const out = new Map<string, RevenueCell>();
-    for (const piece of pieces) for (const [key, cell] of summarize(piece).properties) addCell(out.get(key) ?? setNew(out, key), cell);
+    for (const piece of pieces) for (const [key, cell] of summarize(piece)[level]) addCell(out.get(key) ?? setNew(out, key), cell);
     return Object.fromEntries(out) as OpsRevenueCells;
   };
+  const roomFirstSale: Record<string, string> = {};
+  for (const reservation of reservations) {
+    if (!isSalesCountedReservation(reservation) || String(reservation.raw.status).toLowerCase() === "black") continue;
+    if (reservation.checkOut <= reservation.checkIn) continue;
+    const seen = roomFirstSale[reservation.roomKey];
+    if (!seen || reservation.checkIn < seen) roomFirstSale[reservation.roomKey] = reservation.checkIn;
+  }
+  const rooms: Record<string, Array<{ key: string; label: string }>> = {};
+  for (const room of inputs.rooms) {
+    if (!room.inCatalog) continue;
+    (rooms[room.propertyName] ??= []).push({ key: room.key, label: room.label ?? room.key });
+  }
   const excluded = new Set(defaultSalesExcluded(inputs.properties));
   return {
     a: args.a,
-    aCells: sum(aPieces),
+    aCells: sum(aPieces, "properties"),
+    aRoomCells: sum(aPieces, "rooms"),
     b: args.b,
-    bCells: sum(bPieces),
+    bCells: sum(bPieces, "properties"),
+    bRoomCells: sum(bPieces, "rooms"),
+    roomFirstSale,
+    rooms,
     properties: inputs.properties.map((name) => ({
       defaultExcluded: excluded.has(name),
       name,
@@ -267,7 +297,7 @@ async function createRevenueSummarizer(session: AppSession, window: { start: str
     return result;
   };
 
-  return { cache, inputs, summarize };
+  return { cache, inputs, reservations, summarize };
 }
 
 function setNew(map: Map<string, RevenueCell>, key: string): RevenueCell {

@@ -26,8 +26,10 @@ import {
   bridgeScale,
   buildBridge,
   changePctOrNull,
+  findNewRooms,
   groupProperties,
   growthDrivers,
+  newRoomShare,
   niceUnit,
   topMover,
   totalOf,
@@ -140,6 +142,10 @@ export function OpsRevenueCompareConsole({
   const bTot = totalOf(inNames, data.bCells);
   const delta = aTot.revenue - bTot.revenue;
   const growth = changePctOrNull(aTot.revenue, bTot.revenue);
+  // 기존 건물의 새 객실(첫 판매일이 B 뒤) — 건물 숫자는 그대로, 차이 분해에서만 몫을 떼어 낸다(2026-10-08).
+  const newRooms = findNewRooms(groups.existing, data.rooms, data.roomFirstSale, data.b.range.to, data.a.range.to);
+  const roomShare = newRoomShare(newRooms, data.aRoomCells, data.bRoomCells);
+  const drivers = growthDrivers(groups, data.aCells, data.bCells, roomShare);
   const aEx = totalOf(groups.existing, data.aCells);
   const bEx = totalOf(groups.existing, data.bCells);
   const exGrowth = changePctOrNull(aEx.revenue, bEx.revenue);
@@ -147,8 +153,10 @@ export function OpsRevenueCompareConsole({
   const closedSum = totalOf(groups.closed, data.bCells).revenue;
   const mixChanged = groups.fresh.length > 0 || groups.closed.length > 0;
   const sameRange = data.a.range.from === data.b.range.from && data.a.range.to === data.b.range.to;
-  const exAdr = changePctOrNull(aEx.adr, bEx.adr);
-  const exOcc = aEx.availableNights > 0 && bEx.availableNights > 0 ? aEx.occupancyPct - bEx.occupancyPct : null;
+  // 단가 · 가동률 변화는 **같은 방들끼리**(새 객실 뺀 것) — 기여 막대와 같은 기준.
+  const same = { a: drivers.existingA, b: drivers.existingB };
+  const exAdr = changePctOrNull(same.a.adr, same.b.adr);
+  const exOcc = same.a.availableNights > 0 && same.b.availableNights > 0 ? same.a.occupancyPct - same.b.occupancyPct : null;
 
   const exportPayload = (): OpsCompareExportPayload => {
     const side = (m: RevenueMetrics) => ({ available: m.availableNights, occupied: m.occupiedNights, revenue: m.revenue });
@@ -279,17 +287,19 @@ export function OpsRevenueCompareConsole({
               copy={copy}
               delta={delta}
               existingCount={groups.existing.length}
-              existingDelta={aEx.revenue - bEx.revenue}
+              existingDelta={same.a.revenue - same.b.revenue}
+              newRoomsDelta={roomShare ? roomShare.a.revenue - roomShare.b.revenue : 0}
               freshSum={freshSum}
               propertyCount={inNames.length}
               signedYen={signedYen}
               yen={yen}
             />
             <GrowthPanel
-              aEx={aEx}
-              bEx={bEx}
+              aEx={same.a}
+              bEx={same.b}
               copy={copy}
-              drivers={growthDrivers(groups, data.aCells, data.bCells)}
+              drivers={drivers}
+              newRoomLabels={roomShare?.labels ?? []}
               freshNames={groups.fresh}
               closedNames={groups.closed}
               growth={growth}
@@ -301,7 +311,10 @@ export function OpsRevenueCompareConsole({
                 ...(groups.fresh.length > 0
                   ? [fill(copy.insNew, { d: signedYen(delta), n: yen(freshSum), names: groups.fresh.join(" · ") })]
                   : []),
-                ...(groups.existing.length > 0 && mixChanged
+                ...(roomShare && roomShare.a.revenue - roomShare.b.revenue !== 0
+                  ? [fill(copy.insNewRooms, { names: roomShare.labels.join(" · "), v: signedYen(roomShare.a.revenue - roomShare.b.revenue) })]
+                  : []),
+                ...(groups.existing.length > 0 && (mixChanged || roomShare)
                   ? [
                       fill(copy.insExisting, {
                         adr: signedPct(exAdr),
@@ -380,7 +393,7 @@ export function OpsRevenueCompareConsole({
             signedPct={signedPct}
             signedPoint={signedPoint}
             signedYen={signedYen}
-            steps={buildBridge(groups, data.aCells, data.bCells)}
+            steps={buildBridge(groups, data.aCells, data.bCells, 3, roomShare)}
             yen={yen}
             aTotal={aTot.revenue}
           />
@@ -526,6 +539,7 @@ function TotalPanel({
   freshSum,
   closedSum,
   existingDelta,
+  newRoomsDelta,
   existingCount,
   propertyCount,
   yen,
@@ -539,6 +553,7 @@ function TotalPanel({
   freshSum: number;
   closedSum: number;
   existingDelta: number;
+  newRoomsDelta: number;
   existingCount: number;
   propertyCount: number;
   yen: (v: number) => string;
@@ -577,6 +592,7 @@ function TotalPanel({
         {existingCount > 0 && (
           <div><span className="k">{fill(copy.splitExisting, { n: existingCount })}</span><span className={`v ${existingDelta >= 0 ? "up" : "dn"}`}>{signedYen(existingDelta)}</span></div>
         )}
+        {newRoomsDelta !== 0 && <div><span className="k">{copy.splitNewRooms}</span><span className={`v ${newRoomsDelta >= 0 ? "up" : "dn"}`}>{signedYen(newRoomsDelta)}</span></div>}
         {closedSum !== 0 && <div><span className="k">{copy.splitClosed}</span><span className="v dn">{signedYen(-closedSum)}</span></div>}
       </div>
     </div>
@@ -596,6 +612,7 @@ function GrowthPanel({
   bEx,
   freshNames,
   closedNames,
+  newRoomLabels,
   n,
   yen,
   signedYen,
@@ -611,6 +628,7 @@ function GrowthPanel({
   bEx: RevenueMetrics;
   freshNames: string[];
   closedNames: string[];
+  newRoomLabels: string[];
   n: (v: number) => string;
   yen: (v: number) => string;
   signedYen: (v: number) => string;
@@ -621,6 +639,7 @@ function GrowthPanel({
     ({
       closed: { name: copy.driverClosed, sub: closedNames.join(" · ") },
       fresh: { name: copy.driverFresh, sub: freshNames.join(" · ") },
+      newRooms: { name: copy.driverNewRooms, sub: newRoomLabels.join(" · ") },
       price: { name: copy.driverPrice, sub: fill(copy.driverPriceSub, { a: yen(aEx.adr), b: yen(bEx.adr) }) },
       volume: { name: copy.driverVolume, sub: fill(copy.driverVolumeSub, { a: n(aEx.occupiedNights), b: n(bEx.occupiedNights) }) },
     })[key];
@@ -755,6 +774,8 @@ function Bridge({
           label: fill(copy.stepExisting, { n: groups.existing.length }),
           sub: fill(copy.stepExistingSub, { adr: signedPct(exAdr), occ: exOcc === null ? "—" : signedPoint(exOcc) }),
         };
+      case "newRooms":
+        return { label: fill(copy.stepNewRooms, { n: step.names.length }), sub: step.names.join(" · ") };
       case "fresh":
         return { label: step.names[0], sub: copy.stepFreshSub };
       case "freshOther":
