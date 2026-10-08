@@ -20,7 +20,7 @@
          font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Apple SD Gothic Neo", "Noto Sans JP", "Noto Sans KR", system-ui, sans-serif;
          padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); -webkit-user-select: none; user-select: none; }
   main { width: 100%; max-width: 340px; }
-  .mark { width: 64px; height: 64px; margin: 0 auto 20px; display: block; }
+  .mark { width: 64px; height: 64px; margin: 0 auto 20px; display: block; border-radius: 15px; }
   h1 { font-size: 20px; line-height: 1.35; margin: 0 0 10px; font-weight: 700; }
   p { font-size: 14px; line-height: 1.6; margin: 0; color: var(--muted); }
   button { margin-top: 24px; width: 100%; height: 48px; border: 0; border-radius: 14px;
@@ -32,12 +32,7 @@
 </head>
 <body>
 <main>
-  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
-    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#36568f"/><stop offset="1" stop-color="#1a2c4f"/></linearGradient></defs>
-    <rect width="64" height="64" rx="14" fill="url(#g)"/>
-    <text x="32" y="33" text-anchor="middle" dominant-baseline="central" font-family="Georgia, 'Times New Roman', serif"
-          font-style="italic" font-weight="700" font-size="40" fill="#f7f4ee">S</text>
-  </svg>
+  <img class="mark" src="icon.png" alt="" width="64" height="64" />
   <h1 id="title"></h1>
   <p id="body"></p>
   <button id="retry" type="button"></button>

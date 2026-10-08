@@ -220,16 +220,22 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 
 ### 아이콘 · 스플래시
 
-- 앱 아이콘 · 스플래시(B1-2, 2026-10-07): `node scripts/dev/generate-app-icons.mjs` 가 iOS `AppIcon` · `Splash`, Android
-  `mipmap-*`(적응형 배경 · 전경) · `drawable*/splash.png`, 스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png` 를 만든다.
-  Android 시작 화면은 `res/values/styles.xml` 의 `windowSplashScreen*`(아이보리 바탕 + 남색 원 — core-splashscreen 이 Android 7~11 에도 같은 모양으로).
-  `drawable*/splash.png` 비트맵은 **쓰지 않는다**: 시작 테마 `android:background` 로 깔았더니 화면 비율에 맞지 않게 늘어나 로고가 잠깐 엉뚱한 위치에
-  보였다(N11). 시작 테마 바탕 · WebView 바탕(`capacitor.config.ts` `backgroundColor`)은 아이보리 단색.
-  시작 화면 아이콘은 `drawable-nodpi/splash_icon.png`(960px — 240dp 로 그려지므로 108dp 전경을 쓰면 흐리다).
-  **웹 시작 화면(`src/components/pwa/splash-screen.tsx`)은 앱에서 숨긴다** — `SPLIT_PANE_BOOT_SCRIPT` 앞부분이 그리기 전에
-  `html[data-native-app]` 을 달고 `globals.css` 가 `[data-splash]` 를 감춘다. 겹치면 OS 시작 화면의 큰 원 아이콘 → 웹의 작은 네모 아이콘으로
-  로고가 순간 이동했다(N11). 브라우저 · PWA 에서는 웹 시작 화면이 그대로 뜬다. 정식 로고가 생기면 스크립트의
-  `mark()` 만 바꾸고 다시 돌린 뒤 `npm run cap:android:win`.
+- **원본 = 제품 로고 `public/icons/icon-512.png`**(회색 종이 질감 위 열린 문 — PWA · 오프라인 화면과 같은 그림, 2026-06-23 교체 `fbb00a1`).
+  `node scripts/dev/generate-app-icons.mjs [원본]` 이 iOS `AppIcon`(1024, 알파 없음) · `Splash`, Android `mipmap-*`(옛 둥근 네모 · 원형 ·
+  적응형 = 회색 배경 층 + 로고 68% 전경) · `drawable-nodpi/splash_icon.png`(960px), 연결 실패 화면 `capacitor-www/icon.png`,
+  스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png` 를 만든다.
+  - 2026-10-07 첫 버전은 옛 `generate-pwa-icons.mjs` 의 남색 "S" 임시 마크로 만들어 **브랜드가 틀렸다**(2026-10-08 실제 로고로 교체).
+    그 옛 스크립트는 쓰지 않는다 — 돌리면 `public/icons` 를 옛 마크로 덮어쓴다.
+  - 원본이 512px 라 1024 스토어 아이콘은 2배 확대본이다. **1024px 이상 원본을 받으면 인자로 넘겨 다시 생성**(계획 B1-2).
+  - 512 원본 테두리에 어두운 테 · 반투명 검정 잔여가 있어 바깥 3% 를 잘라내고 둥근 네모로 다시 깎는다.
+- Android 시작 화면: `styles.xml` 의 `windowSplashScreen*` — 아이보리 바탕 + 가운데 원(아이콘 배경색 = 로고 회색 `#8F8D8D`) 안의 로고.
+  core-splashscreen 이 Android 7~11 에도 같은 모양으로 그린다. 시작 화면 아이콘은 240dp 로 그려지므로 960px(`drawable-nodpi`).
+- `drawable*/splash.png` 비트맵은 **없앴다**: 시작 테마 `android:background` 로 깔았더니 화면 비율에 맞지 않게 늘어나 로고가 잠깐 엉뚱한
+  위치에 보였다(N11). 시작 테마 바탕 · WebView 바탕(`capacitor.config.ts` `backgroundColor`)은 아이보리 단색.
+- **웹 시작 화면(`src/components/pwa/splash-screen.tsx`)은 앱에서 숨긴다** — `SPLIT_PANE_BOOT_SCRIPT` 앞부분이 그리기 전에
+  `html[data-native-app]` 을 달고 `globals.css` 가 `[data-splash]` 를 감춘다. 겹치면 OS 시작 화면 → 웹의 작은 네모 아이콘(튀어나오는
+  애니메이션)으로 로고가 순간 이동 · 흐려 보였다(N11). 브라우저 · PWA 에서는 웹 시작 화면이 그대로 뜬다.
+- 아이콘 · 시작 화면을 바꾸면 `npm run cap:android:win` 후 ▶ Run(네이티브 그림이라 재설치 필요).
 
 ## Initial Web Hosting
 

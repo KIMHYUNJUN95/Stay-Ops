@@ -46,7 +46,7 @@
 | B1 | **Capacitor 골격** (iOS · Android 프로젝트, 앱 ID, 권한 설정) | 🤖 | [x] 2026-10-06 | `capacitor.config.ts` · `android/` · `ios/`. 앱은 배포된 웹을 띄운다. 빌드 방법: `03-deployment-strategy.md` 「앱 빌드」 |
 | B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [~] 2026-10-08 Pixel 8 에뮬레이터(API 35)에서 설치 · 실행 · 로그인 → 모바일 홈(판매 캘린더) 정상. 남은 확인: 출퇴근 QR 권한 · 다운로드 · 외부 링크 · 뒤로가기 · 연결 실패 화면. 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 → 연결 실패 화면(비행기 모드) → 새 아이콘 · 시작 화면 |
 | B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [~] 2026-10-07 서명 없는 시뮬레이터 빌드 확인 워크플로 · 서명 · TestFlight 업로드는 A2 후 | `.github/workflows/ios-build-check.yml` — iOS 파일이 바뀌면 macOS 러너에서 컴파일 확인. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
-| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 | [x] 2026-10-07 | PWA 와 같은 마크(남색 + 이탤릭 "S")를 SVG 로 그려 생성 — `node scripts/dev/generate-app-icons.mjs`. iOS 1024(알파 없음) · Android 적응형 · 시작 화면(11 이하 이미지, 12+ `windowSplashScreen*`) · 스토어용 `store-assets/`. **정식 로고가 생기면 `mark()` 만 바꾸고 다시 돌린다** |
+| B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 (+👤 원본) | [~] 2026-10-08 **실제 로고(회색 문)로 다시 생성** — 10-07 판은 옛 남색 "S" 임시 마크라 브랜드가 틀렸다. 남은 것: 👤 **1024px 이상 로고 원본**(지금은 512 를 2배로 늘린 App Store 아이콘) | `node scripts/dev/generate-app-icons.mjs [원본]`. `03` 「아이콘 · 스플래시」 |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
 | B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [x] 2026-10-08 N10 수정(`b77cffc` · `9c5167d`) 후 에뮬레이터에서 Google 로그인 → 앱 복귀 → 앱 화면(주소창 없음) 확인 | 위쪽에 주소 · X 버튼이 보이면 앱이 아니라 앱 안 브라우저 |
@@ -155,3 +155,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-08 | `9c5167d` | N10 원인 2 — 앱 복귀 주소를 예전 WebView 에서도 읽도록 문자열 판정 |
 | 2026-10-08 | `c9589e0` | N11 시작 화면 로고 위치 튐 · 흰 화면 깜빡임 |
 | 2026-10-08 | `8ac9741` | N11 진짜 원인 — 앱에서 웹 시작 화면 숨김 · 시작 화면 아이콘 960px · N3 · N10 앱에서 확인 |
+| 2026-10-08 | (이 커밋) | B1-2 앱 아이콘 · 시작 화면 · 연결 실패 화면 로고를 실제 제품 로고(회색 문)로 교체 — 남색 "S" 는 옛 임시 마크였다 |

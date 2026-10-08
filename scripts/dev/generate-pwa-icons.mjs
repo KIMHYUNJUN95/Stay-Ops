@@ -1,4 +1,8 @@
 /**
+ * ⚠️ 더 이상 쓰지 않는다(2026-10-08). 제품 로고는 2026-06-23 에 회색 「열린 문」 그림으로 바뀌었고(`public/icons/*`, 커밋 fbb00a1),
+ * 이 스크립트를 돌리면 옛 남색 "S" 임시 마크로 **덮어쓴다**. 앱 아이콘 · 시작 화면은 `generate-app-icons.mjs`(실제 로고 기준)를 쓴다.
+ */
+/**
  * One-off: generate StayOps PWA / home-screen icons from an inline SVG (no binary asset needed).
  *
  * Brand mark: deep ink-navy gradient squircle + ivory serif italic "S" (the "Stay Ops" wordmark is
