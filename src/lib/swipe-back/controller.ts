@@ -321,22 +321,24 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
 
     if (phase === "pending") {
       const decision = decideLock(dx, dy);
-      if (decision === "pending") return;
+      if (decision === "pending") {
+        // iOS(WebKit)는 우리가 정하기 전(10px)에 스크롤 팬을 시작해 버린다 — 그 뒤 touchmove 는 막을 수 없어 제스처가
+        // 통째로 무시됐다(2026-10-08 아이폰에서 「반응 없음」). 아직 판정 전이라도 오른쪽으로 뚜렷이 가로인 움직임이면
+        // 브라우저의 팬 시작부터 막는다. 세로가 섞인 움직임은 건드리지 않는다(세로 스크롤은 그대로).
+        if (dx > 2 && dx > Math.abs(dy) * 1.5 && event.cancelable) event.preventDefault();
+        return;
+      }
       if (decision === "reject" || hasLeftScrollableAncestor(event.target instanceof Element ? event.target : null, surface)) {
         reset();
         return;
       }
-      if (!event.cancelable) {
-        // 브라우저가 이미 스크롤을 시작했다 — 둘이 같이 움직이지 않게 이번 터치는 포기한다.
-        reset();
-        return;
-      }
+      // 막을 수 없는 touchmove(브라우저가 이미 팬을 시작)여도 가로로 잠갔으면 간다 — 세로로는 거의 안 움직인 상태다.
       phase = "dragging";
       lockDx = dx;
       beginDrag();
     }
 
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
     offset = Math.max(0, dx - lockDx);
     const now = performance.now();
     samples.push({ t: now, x: offset });
