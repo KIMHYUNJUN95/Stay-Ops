@@ -3003,7 +3003,7 @@ const FALLBACK_DICTIONARY = {
       noAccount: "Don't have an account?",
       signUpEmail: "Sign up with email",
       inviteNote:
-        "After signing in, enter your team invite code and basic details to start working. Please contact the developer for the code.",
+        "After signing in, enter your team invite code and basic details to start working. Ask your organization's admin for the code.",
       // Shown when the visitor arrived by scanning an on-site attendance QR while signed out.
       // A wall QR can be scanned by anyone walking past, so this says plainly who it is for.
       qrNoticeTitle: "Attendance QR scanned",
@@ -3245,7 +3245,7 @@ const FALLBACK_DICTIONARY = {
     deletedUser: "Deleted user",
     close: "Close",
     permissionDeniedTitle: "No permission",
-    permissionDeniedBody: "You don't have permission to do this. Please contact the developer.",
+    permissionDeniedBody: "You don't have permission to do this. Please contact your organization's admin.",
   },
   languages: { ko: "한국어", ja: "日本語", en: "English" },
   requestImages: {
@@ -5196,7 +5196,7 @@ const FALLBACK_DICTIONARY = {
       inviteEyebrow: "Join your team",
       inviteTitle: "Enter your team\ninvite code",
       inviteSubtitle:
-        "Enter the code you received from the developer to confirm your organization and role.",
+        "Enter the code from your organization's admin to confirm your organization and role.",
       caseHint: "Invite codes are not case-sensitive.",
       verifyCta: "Verify team",
       checking: "Checking",
@@ -5249,7 +5249,7 @@ const FALLBACK_DICTIONARY = {
         title: "Enter your basic details and team invite code",
         lede: "Your name, organization and role are shown to teammates. Date of birth, gender and phone number are not.",
         joinTitle: "Enter your team invite code",
-        inviteHint: "The code you received from the developer",
+        inviteHint: "The code from your organization's admin",
         dobInvalid: "Enter a valid date of birth (age 14 or older).",
         countrySearch: "Search country",
         countryEmpty: "No matching country",
@@ -5264,7 +5264,7 @@ const FALLBACK_DICTIONARY = {
     fullNamePlaceholder: "Full name",
     inviteCodeOptionalPlaceholder: "Invite code (optional)",
     inviteCodePlaceholder: "Invite code",
-    inviteCodeHint: "Enter the code provided by the developer to join the team.",
+    inviteCodeHint: "Enter the team invite code from your organization's admin.",
     join: "Join",
     joinBody: (name: string) => `Welcome, ${name}. Enter your team invite code to get started.`,
     joinTitle: "Join your team",
@@ -9310,7 +9310,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         qrNoticeBody:
           "직원 전용 화면이에요. 로그인하면 바로 출근·퇴근을 인증할 수 있어요. 이곳 직원이 아니라면 이 코드는 사용할 수 없어요.",
         inviteNote:
-          "로그인 후 팀 초대코드와 기본 정보를 입력해야 업무를 시작할 수 있어요. 코드는 개발자에게 문의해 주세요.",
+          "로그인 후 팀 초대코드와 기본 정보를 입력해야 업무를 시작할 수 있어요. 코드는 소속 조직 관리자에게 받으세요.",
         termsLink: "이용약관",
         privacyLink: "개인정보",
         helpLink: "도움말",
@@ -9543,7 +9543,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deletedUser: "탈퇴한 사용자",
       close: "닫기",
       permissionDeniedTitle: "권한이 없습니다",
-      permissionDeniedBody: "이 작업을 수행할 권한이 없습니다. 개발자에게 문의하세요.",
+      permissionDeniedBody: "이 작업을 수행할 권한이 없습니다. 소속 조직 관리자에게 문의하세요.",
     },
     requestImages: {
       addPhotos: "사진 추가",
@@ -11429,7 +11429,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         inviteEyebrow: "팀 참여",
         inviteTitle: "팀 초대코드를\n입력하세요",
         inviteSubtitle:
-          "개발자에게 받은 코드를 입력하면 조직과 역할을 확인할 수 있어요.",
+          "소속 조직 관리자에게 받은 코드를 입력하면 조직과 역할을 확인할 수 있어요.",
         caseHint: "코드는 대소문자를 구분하지 않습니다.",
         verifyCta: "팀 확인",
         checking: "확인 중",
@@ -11481,7 +11481,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
           title: "기본 정보와 팀 초대코드를 입력하세요",
           lede: "이름 · 소속 · 역할은 팀원에게 표시되고, 생년월일 · 성별 · 전화번호는 공개되지 않습니다.",
           joinTitle: "팀 초대코드를 입력하세요",
-          inviteHint: "개발자에게 받은 코드",
+          inviteHint: "소속 조직 관리자에게 받은 코드",
           dobInvalid: "올바른 생년월일을 입력하세요 (만 14세 이상).",
           countrySearch: "국가 검색",
           countryEmpty: "일치하는 국가가 없어요",
@@ -11496,7 +11496,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       fullNamePlaceholder: "이름",
       inviteCodeOptionalPlaceholder: "초대코드 (선택)",
       inviteCodePlaceholder: "초대코드",
-      inviteCodeHint: "개발자에게 받은 팀 초대코드를 입력하세요.",
+      inviteCodeHint: "소속 조직 관리자에게 받은 팀 초대코드를 입력하세요.",
       join: "참여하기",
       joinBody: (name: string) => `${name}님, 팀 초대코드를 입력해 조직에 참여하세요.`,
       joinTitle: "팀 참여",
@@ -15487,7 +15487,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         qrNoticeBody:
           "スタッフ専用の画面です。ログインすると、そのまま出勤・退勤を認証できます。こちらのスタッフでない場合、このコードはご利用いただけません。",
         inviteNote:
-          "サインイン後、チーム招待コードと基本情報を入力すると業務を開始できます。コードは開発者にお問い合わせください。",
+          "サインイン後、チーム招待コードと基本情報を入力すると業務を開始できます。コードは所属組織の管理者にお問い合わせください。",
         termsLink: "利用規約",
         privacyLink: "プライバシー",
         helpLink: "ヘルプ",
@@ -15720,7 +15720,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       deletedUser: "退会済みユーザー",
       close: "閉じる",
       permissionDeniedTitle: "権限がありません",
-      permissionDeniedBody: "この操作を行う権限がありません。開発者にお問い合わせください。",
+      permissionDeniedBody: "この操作を行う権限がありません。所属組織の管理者にお問い合わせください。",
     },
     requestImages: {
       addPhotos: "写真を追加",
@@ -17606,7 +17606,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
         inviteEyebrow: "チーム参加",
         inviteTitle: "チーム招待コードを\n入力してください",
         inviteSubtitle:
-          "開発者から受け取ったコードを入力すると、組織と役割を確認できます。",
+          "所属組織の管理者から受け取ったコードを入力すると、組織と役割を確認できます。",
         caseHint: "コードは大文字・小文字を区別しません。",
         verifyCta: "チームを確認",
         checking: "確認中",
@@ -17658,7 +17658,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
           title: "基本情報とチーム招待コードを入力してください",
           lede: "氏名 · 所属 · 役割はチームメンバーに表示され、生年月日 · 性別 · 電話番号は公開されません。",
           joinTitle: "チーム招待コードを入力してください",
-          inviteHint: "開発者から受け取ったコード",
+          inviteHint: "所属組織の管理者から受け取ったコード",
           dobInvalid: "正しい生年月日を入力してください（14歳以上）。",
           countrySearch: "国を検索",
           countryEmpty: "一致する国がありません",
@@ -17673,7 +17673,7 @@ const localeOverrides: Record<Locale, DeepPartial<typeof FALLBACK_DICTIONARY>> =
       fullNamePlaceholder: "名前",
       inviteCodeOptionalPlaceholder: "招待コード（任意）",
       inviteCodePlaceholder: "招待コード",
-      inviteCodeHint: "開発者から受け取ったチーム招待コードを入力してください。",
+      inviteCodeHint: "所属組織の管理者から受け取ったチーム招待コードを入力してください。",
       join: "参加",
       joinBody: (name: string) => `${name}さん、チーム招待コードを入力して参加してください。`,
       joinTitle: "チームに参加",
