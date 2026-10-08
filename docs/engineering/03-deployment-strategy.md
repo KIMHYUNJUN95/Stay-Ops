@@ -167,6 +167,7 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 | 다른 출처 `window.open`(예: 캘린더 지도) | 새 탭 | 앱 안 브라우저 |
 | `tel:` · `mailto:` | OS | Capacitor 가 OS 로 넘김(손대지 않음) |
 | Android 뒤로가기 버튼 | — | 오버레이 닫기 → 이전 화면 → 앱 최소화(`16-mobile-navigation.md`) |
+| 링크 · 사진 길게 누르기 | 브라우저 메뉴 | 메뉴 없음(`contextmenu` 차단, 입력칸 · 편집 영역 제외). iOS 링크 미리보기 off(`ios.allowsLinkPreview: false`) — N8 |
 
 - 상태바 · 내비게이션 바: `capacitor.config.ts` `plugins.SystemBars` = `insetsHandling: "native"` + `initialViewportFitValueHint: "cover"`
   + `style: "LIGHT"`(어두운 아이콘). 웹의 `viewport-fit=cover` · `env(safe-area-inset-*)` 가 그대로 쓰인다(Android 15+ edge-to-edge 대응).

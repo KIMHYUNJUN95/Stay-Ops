@@ -108,13 +108,58 @@ export function changePctOrNull(a: number, b: number): number | null {
   return b !== 0 ? ((a - b) / Math.abs(b)) * 100 : null;
 }
 
-/** 기존 건물 중 매출 증감률이 가장 큰 건물(늘어난 쪽 우선, 하나도 없으면 가장 적게 줄어든 쪽 대신 가장 크게 줄어든 쪽). */
-export function topMover(existing: readonly string[], a: CompareCells, b: CompareCells): { name: string; pct: number } | null {
-  const moves = existing
-    .map((name) => ({ name, pct: changePctOrNull(a[name]?.revenue ?? 0, b[name]?.revenue ?? 0) }))
-    .filter((move): move is { name: string; pct: number } => move.pct !== null);
+/**
+ * 기존 건물 중 매출이 **금액으로** 가장 많이 늘어난 건물(없으면 가장 많이 줄어든 건물). 퍼센트로 고르면 전년 매출이 작은
+ * 건물이 +500% 로 뽑힌다(2026-10-08 사용자 화면 — 오쿠보B +513.7%). 표시는 증감률을 같이 준다.
+ */
+export function topMover(
+  existing: readonly string[],
+  a: CompareCells,
+  b: CompareCells,
+): { name: string; pct: number | null; delta: number } | null {
+  const moves = existing.map((name) => {
+    const av = a[name]?.revenue ?? 0;
+    const bv = b[name]?.revenue ?? 0;
+    return { delta: av - bv, name, pct: changePctOrNull(av, bv) };
+  });
   if (moves.length === 0) return null;
-  const up = moves.filter((move) => move.pct > 0).sort((x, y) => y.pct - x.pct);
+  const up = moves.filter((move) => move.delta > 0).sort((x, y) => y.delta - x.delta);
   if (up.length > 0) return up[0];
-  return [...moves].sort((x, y) => x.pct - y.pct)[0];
+  return [...moves].sort((x, y) => x.delta - y.delta)[0];
+}
+
+export type GrowthDriver = {
+  key: "volume" | "price" | "fresh" | "closed";
+  /** 엔. */
+  value: number;
+  /** B 합계 대비 %p — 다 더하면 총 증감률. B 합계가 0 이면 `null`. */
+  points: number | null;
+};
+
+/**
+ * 총 증감을 무엇이 만들었나(2026-10-08 — 다이얼 대신). 매출 = 판매 박 × 객실 단가라서 기존 건물의 변화를 정확히 둘로 나눈다:
+ * 판매 박 효과 = (판매 박 A − B) × 단가 B, 단가 효과 = 나머지(= (단가 A − 단가 B) × 판매 박 A). 그리고 새로 판 건물(+) ·
+ * 판매가 없어진 건물(−). 넷의 합 = A 합계 − B 합계(테스트). 몫이 0 인 항목은 뺀다.
+ */
+export function growthDrivers(groups: CompareGroups, a: CompareCells, b: CompareCells): { total: number; totalPoints: number | null; drivers: GrowthDriver[] } {
+  const aEx = totalOf(groups.existing, a);
+  const bEx = totalOf(groups.existing, b);
+  const bTotal = totalOf([...groups.existing, ...groups.closed], b).revenue;
+  const aTotal = totalOf([...groups.existing, ...groups.fresh], a).revenue;
+  const volume = bEx.occupiedNights > 0 ? (aEx.occupiedNights - bEx.occupiedNights) * bEx.adr : 0;
+  const price = aEx.revenue - bEx.revenue - volume;
+  const fresh = totalOf(groups.fresh, a).revenue;
+  const closed = -totalOf(groups.closed, b).revenue;
+  const points = (value: number) => (bTotal !== 0 ? (value / Math.abs(bTotal)) * 100 : null);
+  const drivers: GrowthDriver[] = (
+    [
+      ["volume", volume],
+      ["price", price],
+      ["fresh", fresh],
+      ["closed", closed],
+    ] as const
+  )
+    .filter(([, value]) => Math.round(value) !== 0)
+    .map(([key, value]) => ({ key, points: points(value), value }));
+  return { drivers, total: aTotal - bTotal, totalPoints: points(aTotal - bTotal) };
 }

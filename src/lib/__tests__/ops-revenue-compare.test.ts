@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyCell, type RevenueCell } from "@/lib/ops-revenue";
-import { bridgeScale, buildBridge, groupProperties, niceUnit, topMover } from "@/lib/ops-revenue-compare";
+import { bridgeScale, buildBridge, groupProperties, growthDrivers, niceUnit, topMover } from "@/lib/ops-revenue-compare";
 
 const cell = (revenue: number, occupied = revenue > 0 ? 10 : 0): RevenueCell => ({ ...emptyCell(), availableNights: 30, occupiedNights: occupied, revenue });
 
@@ -66,11 +66,35 @@ describe("bridgeScale · niceUnit", () => {
 });
 
 describe("topMover", () => {
-  it("기존 건물 중 가장 많이 늘어난 곳", () => {
+  it("기존 건물 중 금액으로 가장 많이 늘어난 곳 — 퍼센트가 아니라", () => {
     const g = groupProperties(names, A, B);
     expect(topMover(g.existing, A, B)?.name).toBe("아라키초B");
+    // small 은 +400% 지만 +¥400,000, big 은 +5% 지만 +¥500,000 — 금액이 큰 big
+    const a = { big: cell(10_500_000), small: cell(500_000) };
+    const b = { big: cell(10_000_000), small: cell(100_000) };
+    expect(topMover(["big", "small"], a, b)?.name).toBe("big");
   });
   it("늘어난 곳이 없으면 가장 많이 줄어든 곳", () => {
     expect(topMover(["다카다노바바", "가부키초"], A, B)?.name).toBe("다카다노바바");
+  });
+});
+
+describe("growthDrivers", () => {
+  it("판매 박 효과 + 단가 효과 + 신규 + 없어진 건물 = 총 증감", () => {
+    const g = groupProperties([...names, "닫힌곳"], A, { ...B, 닫힌곳: cell(500000) });
+    const { drivers, total, totalPoints } = growthDrivers(g, A, { ...B, 닫힌곳: cell(500000) });
+    const sum = drivers.reduce((acc, d) => acc + d.value, 0);
+    expect(Math.round(sum)).toBe(Math.round(total));
+    // 픽스처의 판매 박이 모두 같아(10) 판매 박 효과는 0 — 빠진다
+    expect(drivers.map((d) => d.key)).toEqual(["price", "fresh", "closed"]);
+    const pointSum = drivers.reduce((acc, d) => acc + (d.points ?? 0), 0);
+    expect(pointSum).toBeCloseTo(totalPoints ?? 0, 9);
+  });
+  it("판매 박 효과 = (판매 박 차이) × B 단가", () => {
+    const a = { x: { ...cell(3000, 30) } };
+    const b = { x: { ...cell(2000, 20) } };
+    const { drivers } = growthDrivers(groupProperties(["x"], a, b), a, b);
+    expect(drivers.find((d) => d.key === "volume")?.value).toBe(1000);
+    expect(drivers.find((d) => d.key === "price")).toBeUndefined();
   });
 });

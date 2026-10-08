@@ -13,6 +13,7 @@ import { isNativeApp } from "@/lib/native-app";
  * 2. **Android 뒤로가기 버튼** — 열린 시트 · 대화상자 · 메뉴 · 사진 뷰어가 있으면 먼저 닫고(Esc 와 같은 경로), 없으면 이전 화면,
  *    더 갈 곳이 없으면 앱을 최소화한다(종료하지 않는다). Esc 를 받지 않는 대화상자에서 막히지 않도록, 1.2초 안에 다시 누르면 화면 이동.
  * 3. **상태바 아이콘** — 어두운 아이콘 고정(앱 화면은 늘 밝다). 2026-10-08 네이티브 품질 N1.
+ * 4. **길게 누르기 브라우저 메뉴 차단** — 링크 · 사진의 「링크 주소 복사 · Chrome 에서 열기」 메뉴(입력칸 제외). N8.
  */
 const OVERLAY_SELECTOR = '[aria-modal="true"], [role="dialog"], [data-native-back-overlay]';
 
@@ -61,6 +62,16 @@ export function NativeShellBridge() {
       return null;
     }) as typeof window.open;
 
+    // 4. 길게 누르기 메뉴 — WebView 는 링크 · 사진을 길게 누르면 「Copy link address · Download link · Open in Chrome」 브라우저 메뉴와
+    //    주소를 띄운다(N8). 입력칸 · 편집 영역은 붙여넣기가 필요하므로 그대로 두고, 나머지는 막는다. iOS 링크 미리보기는
+    //    capacitor.config `ios.allowsLinkPreview: false`, iOS 콜아웃은 globals.css `-webkit-touch-callout`.
+    function onContextMenu(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+      event.preventDefault();
+    }
+    document.addEventListener("contextmenu", onContextMenu, true);
+
     // 3. 상태바 아이콘 — 앱 화면은 늘 밝은 아이보리라 어두운 아이콘으로 고정(N1). Android 는 capacitor.config 의
     //    `SystemBars.style` 로도 정하지만 iOS 는 설정값이 없어 여기서 맞춘다(기기 다크 모드면 흰 아이콘이 되어 안 보였다).
     void (async () => {
@@ -93,6 +104,7 @@ export function NativeShellBridge() {
     return () => {
       disposed = true;
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("contextmenu", onContextMenu, true);
       window.open = originalOpen;
       removeBack?.();
     };

@@ -26,6 +26,8 @@ const config: CapacitorConfig = {
   // 웹이 safe-area(env(safe-area-inset-*))를 직접 처리하므로 네이티브 쪽 여백은 넣지 않는다.
   ios: {
     contentInset: "never",
+    // 링크를 길게 누르면 뜨는 Safari 식 미리보기(주소 · 「Safari 에서 열기」)를 끈다 — 네이티브 품질 N8.
+    allowsLinkPreview: false,
   },
   android: {
     allowMixedContent: false,
