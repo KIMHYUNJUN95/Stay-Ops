@@ -3711,6 +3711,103 @@ export type Database = {
           },
         ]
       }
+      ops_room_month_stats: {
+        Row: {
+          organization_id: string
+          month: string
+          room_key: string
+          property_name: string
+          room_label: string
+          in_catalog: boolean
+          revenue: number
+          commission: number
+          occupied_nights: number
+          available_nights: number
+          airbnb: number
+          booking: number
+          direct: number
+          other: number
+          first_check_in: string | null
+        }
+        Insert: {
+          organization_id: string
+          month: string
+          room_key: string
+          property_name: string
+          room_label: string
+          in_catalog: boolean
+          revenue?: number
+          commission?: number
+          occupied_nights?: number
+          available_nights?: number
+          airbnb?: number
+          booking?: number
+          direct?: number
+          other?: number
+          first_check_in?: string | null
+        }
+        Update: {
+          organization_id?: string
+          month?: string
+          room_key?: string
+          property_name?: string
+          room_label?: string
+          in_catalog?: boolean
+          revenue?: number
+          commission?: number
+          occupied_nights?: number
+          available_nights?: number
+          airbnb?: number
+          booking?: number
+          direct?: number
+          other?: number
+          first_check_in?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_room_month_stats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_stats_months: {
+        Row: {
+          organization_id: string
+          month: string
+          version: number
+          dirty: boolean
+          dirty_at: string
+          built_at: string | null
+        }
+        Insert: {
+          organization_id: string
+          month: string
+          version?: number
+          dirty?: boolean
+          dirty_at?: string
+          built_at?: string | null
+        }
+        Update: {
+          organization_id?: string
+          month?: string
+          version?: number
+          dirty?: boolean
+          dirty_at?: string
+          built_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_stats_months_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string

@@ -2045,3 +2045,15 @@ pg_cron 잡 `beds24-tick` (`* * * * *`) → `select public.beds24_tick_if_needed
 
 `user_blocks`: PK (`organization_id`, `blocker_user_id`, `blocked_user_id`), `created_at`, 자기 자신 차단 금지 CHECK.
 
+## 2026-10-08 `ops_stats_months` · `ops_room_month_stats` — 객실 × 월 집계 표
+
+마이그레이션 `202610080002`. 매출 · 가동률 · 비교 화면이 예약을 매번 다시 읽지 않게 객실 행 × 달로 미리 계산해 둔다(도메인 규칙:
+`docs/product/34-metrics-and-automation.md` 「객실 × 월 집계 표」).
+
+`ops_room_month_stats`: PK (`organization_id`, `month` = 그 달 1일, `room_key` = 판매 캘린더 객실 행 키), `property_name` · `room_label` ·
+`in_catalog`, `revenue` · `commission` · `occupied_nights` · `available_nights`(방 × 일수, 목록 방만 — 「문 열기 전」 규칙은 읽는 쪽) ·
+`airbnb` · `booking` · `direct` · `other`(채널 몫), `first_check_in`(그 달 체크인한 확정 예약 중 가장 이른 날).
+
+`ops_stats_months`: PK (`organization_id`, `month`), `version`(앱 `OPS_STATS_VERSION`), `dirty` · `dirty_at`, `built_at`. 트리거가 dirty 를 적는다 —
+`reservations` 행의 전 · 후 날짜의 달(`ops_stats_mark_reservation`, 관련 칸이 실제로 바뀔 때만), `rooms` 의 목록 판정 칸 변경 · 추가 · 삭제와
+`properties.name` 변경은 조직 전체(`ops_stats_mark_room` · `ops_stats_mark_property`).

@@ -295,6 +295,13 @@ curl -sX POST localhost:3000/api/beds24/rates-sync -H "authorization: Bearer $BE
 Beds24 URL 을 저쪽 주소로 되돌리면 즉시 원상복구된다. 그 사이 놓친 요금은 주기 동기화
 (`/api/beds24/rates-sync`, 15분 예정 · 실측 약 6시간)가 메운다 — 웹훅은 「즉시」를 위한 것이지 유일한 경로가 아니다.
 
+### 객실 × 월 집계 틱 (pg_cron + pg_net, 2026-10-08)
+
+- 크론 `ops-stats-tick`(매 분) → `ops_stats_tick_if_needed()` — dirty 달이 있을 때만 `/api/ops/stats-tick` 을 부른다. 주소는 Vault `ops_stats_tick_url`,
+  토큰은 **Beds24 틱 토큰(`beds24_tick_token`)을 같이 쓴다**(대조 `beds24_tick_token_ok`) — 새 비밀값 · 환경변수 없음. 손으로 부를 때는 `CRON_SECRET`.
+- 크론 `ops-stats-daily`(04:10 도쿄) — 모든 달을 dirty 로(안전망). 실행 결과는 `cron.job_run_details.return_message`(`idle` · `not_configured` · `fired`).
+- 틱이 멈춰도 숫자는 틀리지 않는다 — 화면이 읽기 전에 dirty 달을 스스로 계산한다(느려질 뿐).
+
 ### Beds24 틱 (pg_cron + pg_net + Vault, 2026-09-30)
 
 쿨다운(429·크레딧 부족)이 풀린 뒤 대기 가격 작업과 미뤄 둔 웹훅 재조회를 **1분 안에** 이어받는다.

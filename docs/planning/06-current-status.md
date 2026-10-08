@@ -27,6 +27,12 @@ and the major mobile/admin operations modules are implemented and being hardened
   `dictionary.auth.console.entry*Mobile`(ko/ja/en) — 「로그인하고 업무를 시작하세요」. PC 는 그대로. `src/app/auth/login/page.tsx`.
 - 출시 체크리스트 · 진행: `17-app-release-plan.md`. 심사 자료: `18-store-review-kit.md`.
 
+## 2026-10-08 — 객실 × 월 집계 표(속도 2단계)
+
+- 마이그레이션 `202610080002` 운영 적용(표 2 · 트리거 · 크론 `ops-stats-tick` · `ops-stats-daily` · service_role grant). 매출 · 가동률 · 비교 서버 읽기가
+  표를 읽고 dirty 달만 그 자리에서 계산(`src/lib/ops-stats.ts`), 틱 라우트 `/api/ops/stats-tick`. 지금 방식과 대조 불일치 0 · 화면 데이터 0.16~0.64초.
+  34번 「객실 × 월 집계 표」 · 04 · 05 · 07.
+
 ## 2026-10-08 — 매출 · 가동률 · 비교 화면 속도
 
 - 서버 단계 측정 → 예약 읽기를 6장씩 한꺼번에(4.3 → 약 2.0초, 개발 PC 기준) · 차단 읽기 생략(−0.5초) · 달 조각 계산은 겹치는 예약만(0.43 → 0.04초,
