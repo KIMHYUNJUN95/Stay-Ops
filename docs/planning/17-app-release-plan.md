@@ -49,7 +49,7 @@
 | B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 | [x] 2026-10-07 | PWA 와 같은 마크(남색 + 이탤릭 "S")를 SVG 로 그려 생성 — `node scripts/dev/generate-app-icons.mjs`. iOS 1024(알파 없음) · Android 적응형 · 시작 화면(11 이하 이미지, 12+ `windowSplashScreen*`) · 스토어용 `store-assets/`. **정식 로고가 생기면 `mark()` 만 바꾸고 다시 돌린다** |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
-| B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [x] 2026-10-08 에뮬레이터에서 Google 로그인 → 앱 복귀 → 홈 정상(사용자 확인) | |
+| B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [ ] 2026-10-08 **정정**: 로그인이 앱으로 돌아오지 않고 앱 안 브라우저에서 끝났다(N10) → 수정 후 재확인 | 위쪽에 주소 · X 버튼이 보이면 앱이 아니라 앱 안 브라우저 |
 | B3 | **WebView 호환 점검** — 다운로드, 외부 링크(Beds24 · OTA · 지도 · 전화), 카메라 · 위치 권한, Android 뒤로가기 버튼, safe-area | 🤖 | [x] 2026-10-06 | `NativeShellBridge` — 외부 링크 · 다운로드 → 앱 안 브라우저, 같은 출처 새 창 → WebView, 뒤로가기 버튼, SystemBars 설정. 실기기 확인은 B1-1. `03` 「앱 안 WebView 보정」 |
 | B4 | **게시판 신고 · 차단** (`/mobile/board`) | 🤖 | [x] 2026-10-06 | 신고(사유 5종 + 메모) → 신고자에게 즉시 숨김, owner · office_admin 이 `/mobile/board/reports` 에서 삭제 / 문제없음. 차단 = 내 게시판에서 숨김, 계정 → 보안에서 해제. `23-board-workflow.md` §12-C |
 | B4-2 | **신고 취소 · 관리 콘솔 신고 처리** | 🤖 | [x] 2026-10-06 | 계정 → 보안 「신고한 글 · 댓글」 → 신고 취소(`withdrawn`). `/admin/board-reports` 표 + 상세 패널. 처리 권한을 권한 키 `board.moderate` 로 정식화 |
@@ -94,6 +94,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | N7 | 로그인 첫 화면이 「관리자 콘솔에 로그인」 | 폰 · 앱은 현장 앱 문구 | [x] `de5d1e5` · 앱에서 확인 |
 | N8 | 링크를 길게 누르면 **브라우저 메뉴**(Copy link address · Download link · Open in Chrome browser + 주소) | 메뉴 없음(입력칸의 붙여넣기는 유지) | [x] 2026-10-08 앱에서 `contextmenu` 차단(입력칸 제외) + iOS `allowsLinkPreview: false` — 재설치 후 확인 |
 | N9 | 로그인 안내 · 권한 없음 문구가 「개발자에게 문의」 | 실제 직원 · 심사관 기준 「소속 조직 관리자에게」 | [x] 2026-10-08 ko/ja/en 문구 수정 |
+| N10 | **Google 로그인이 앱으로 돌아오지 않음** — 앱 안 브라우저(Custom Tab)에서 웹이 로그인된 채 열리고, 그 안에서 계속 쓰게 됨(카메라도 Chrome 팝업) | 로그인 후 브라우저가 닫히고 앱 화면으로 복귀 | [x] 2026-10-08 원인: `redirectTo` 에 `?next=` 를 붙여 Supabase 등록 주소와 불일치 → Site URL 로 대체됨(auth 로그 확인). 쿼리 없이 보냄 — 재확인 |
 
 ## 2단계 — 계정 · 도메인이 생긴 뒤
 
@@ -148,4 +149,5 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-08 | `1991776` | B2-2 Google 로그인 확인 · 네이티브 품질 수정 목록(N1~N7) 신설 |
 | 2026-10-08 | `8795909` | N1 상태바 아이보리 + 어두운 아이콘 · N2 앱 위치를 네이티브 플러그인으로 · N4 정상 판정 |
 | 2026-10-08 | `00aad4a` | N8 길게 누르기 브라우저 메뉴 차단 |
-| 2026-10-08 | (이 커밋) | N9 「개발자에게 문의」 → 「소속 조직 관리자」(ko/ja/en) · N7 앱 확인 |
+| 2026-10-08 | `3a761b9` | N9 「개발자에게 문의」 → 「소속 조직 관리자」(ko/ja/en) · N7 앱 확인 |
+| 2026-10-08 | (이 커밋) | N10 앱 Google 로그인 복귀 수정(등록 주소와 정확히 일치) · B2-2 확인 정정 |

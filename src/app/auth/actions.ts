@@ -343,8 +343,12 @@ async function startGoogleOAuth(formData: FormData, native: boolean) {
   const langParam = lang ? `&lang=${encodeURIComponent(lang)}` : "";
   const callbackNext = preserveOnboardingLang(next, lang);
 
-  const callbackBase = native ? NATIVE_AUTH_CALLBACK : `${await getAppUrl()}/auth/callback`;
-  const oauthRedirectTo = `${callbackBase}?next=${encodeURIComponent(callbackNext)}`;
+  // 앱은 Supabase 「Redirect URLs」에 등록된 주소와 **글자 하나 다르지 않게** 보내야 한다. `?next=…` 를 붙이면 목록과
+  // 맞지 않아 Supabase 가 사이트 주소(Site URL)로 대신 돌려보냈고, 로그인이 앱이 아니라 앱 안 브라우저(Custom Tab)에서
+  // 끝났다(2026-10-08 auth 로그로 확인). 앱의 목적지는 늘 모바일 홈이라 `next` 없이 보낸다 — 콜백이 기기 기본 경로로 보낸다.
+  const oauthRedirectTo = native
+    ? NATIVE_AUTH_CALLBACK
+    : `${await getAppUrl()}/auth/callback?next=${encodeURIComponent(callbackNext)}`;
 
   // PKCE code_verifier 쿠키가 **이 요청을 보낸 쪽**(앱이면 앱 WebView)에 심긴다. 그래서 앱은 로그인을 시스템
   // 브라우저에서 하더라도, 앱으로 돌아와 WebView 에서 `/auth/callback` 을 열면 같은 쿠키로 교환이 된다.
