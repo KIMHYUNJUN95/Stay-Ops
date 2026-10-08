@@ -390,7 +390,7 @@ function PreviewPane({
             value={date}
           />
         ) : (
-          <span className="atm__chip">{copy.preview.eventSample}</span>
+          <span className="atm__chip">{job.jobKey === "failure_alert" ? copy.preview.failureSample : copy.preview.eventSample}</span>
         )}
         <div className="atm__lseg">
           {AUTOMATION_LOCALES.map((item) => (

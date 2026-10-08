@@ -706,3 +706,53 @@ export function buildHealthAlertText(copy: MessageCopy, alert: HealthAlert, toda
   const { title, lines } = pick();
   return [fill(h.title, { title }), ...lines.split("|").map((line) => line.trim()).filter(Boolean)].join("\n");
 }
+
+/** 자동화 실패 알림 — 기술 키(`job=…`) 대신 무엇이 안 됐고 무엇을 하면 되는지(2026-10-08). */
+export type AutomationFailure =
+  | { kind: "send_failed"; jobKey: AutomationJobKeyLike; date: string | null; sent: number; failed: number }
+  | { kind: "gate_stale"; jobKey: AutomationJobKeyLike; date: string; lastSyncAt: string | null }
+  | { kind: "error"; jobKey: AutomationJobKeyLike; error: string }
+  | { kind: "data_issue"; date: string; issues: CleaningDataIssue[] };
+
+type AutomationJobKeyLike = "daily_report" | "cleaning_list" | "cancel_alert" | "same_day_alert" | "failure_alert";
+
+export function buildFailureAlertText(copy: MessageCopy, failure: AutomationFailure, today: string | null): string {
+  const f = copy.failure;
+  const at = (iso: string | null) => {
+    if (!iso) return "-";
+    const label = tokyoDateTimeLabel(iso);
+    return `${dayLabel(copy, label.slice(0, 10), today)} ${label.slice(11, 16)}`;
+  };
+  const job = (key: AutomationJobKeyLike) => f.jobNames[key] ?? key;
+  let title: string;
+  let lines: string;
+  switch (failure.kind) {
+    case "send_failed":
+      title = fill(f.sendFailed, { job: job(failure.jobKey) });
+      lines = fill(f.sendFailedLines, {
+        date: failure.date ? fill(f.datePrefix, { date: dayLabel(copy, failure.date, today) }) : "",
+        failed: failure.failed,
+        sent: failure.sent,
+      });
+      break;
+    case "gate_stale":
+      title = fill(f.gateStale, { job: job(failure.jobKey) });
+      lines = fill(f.gateStaleLines, { date: dayLabel(copy, failure.date, today), time: at(failure.lastSyncAt) });
+      break;
+    case "error":
+      title = fill(f.error, { job: job(failure.jobKey) });
+      lines = fill(f.errorLines, { error: failure.error.slice(0, 300) });
+      break;
+    case "data_issue":
+      title = fill(f.dataIssue, { n: failure.issues.length });
+      lines = fill(f.dataIssueLines, {
+        date: dayLabel(copy, failure.date, today),
+        list: failure.issues
+          .slice(0, 10)
+          .map((item) => `${item.code || "?"}(${item.bookingId || "?"})`)
+          .join(copy.listSeparator),
+      });
+      break;
+  }
+  return [fill(f.title, { title }), ...lines.split("|").map((line) => line.trim()).filter(Boolean)].join("\n");
+}

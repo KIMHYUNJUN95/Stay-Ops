@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { HEALTH_WEBHOOK_SILENT_MS, silenceAlert, type HealthAlert } from "@/lib/automation/health";
-import { buildHealthAlertText } from "@/lib/automation/messages";
+import { buildFailureAlertText, buildHealthAlertText } from "@/lib/automation/messages";
 import { dictionaries } from "@/lib/i18n";
 
 /**
@@ -40,5 +40,20 @@ describe("시스템 경보", () => {
     );
     expect(ja.split("\n")[0]).toBe("🚨 *Beds24 Webhook が 5時間届いていません*");
     expect(ja).toContain("最終受信 10/8(木) 14:38");
+  });
+
+  // 2026-10-08 — 자동화 실패도 기술 키(job=…) 대신 무엇이 안 됐고 무엇을 하면 되는지.
+  it("자동화 실패 문장 — 발송 실패 · 데이터 경고 · 시험 메시지 제목", () => {
+    const copy = dictionaries.ko.automationMessages;
+    expect(buildFailureAlertText(copy, { date: "2026-10-09", failed: 1, jobKey: "cleaning_list", kind: "send_failed", sent: 0 }, "2026-10-09").split("\n")).toEqual([
+      "🚨 *청소 · 셋팅 명단 발송 실패*",
+      "대상 10/9(금) · 보냄 0곳 · 실패 1곳",
+      "Slack 웹훅이 살아 있는지, 관제실 실행 기록의 실패 사유를 확인해 주세요. 정시 발송은 마감까지 다시 시도합니다.",
+    ]);
+    const issue = buildFailureAlertText(copy, { date: "2026-10-09", issues: [{ bookingId: "94292271", code: "AA302" }], kind: "data_issue" }, "2026-10-09");
+    expect(issue).toContain("🚨 *청소 명단 — 정보가 빠진 예약 1건*");
+    expect(issue).toContain("AA302(94292271)");
+    expect(issue).not.toContain("job=");
+    expect(copy.failure.title).toBe("🚨 *{title}*");
   });
 });

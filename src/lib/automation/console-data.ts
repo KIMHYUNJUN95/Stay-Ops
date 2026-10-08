@@ -149,7 +149,9 @@ export async function getAutomationPageData(session: AppSession, locale: Locale)
         weekdays: job.weekdays,
       };
     }),
-    opsAlertConfigured: !!process.env.SLACK_OPS_ALERT_WEBHOOK_URL?.trim(),
+    // 실패 알림이 어디로든 갈 수 있나 — 「실패 알림」 자동화가 켜져 있고 받는 곳이 있거나, 기존 운영 경보 채널이 있으면.
+    opsAlertConfigured:
+      (jobs.failure_alert.enabled && destinations.failure_alert.length > 0) || !!process.env.SLACK_OPS_ALERT_WEBHOOK_URL?.trim(),
     today,
     yesterday: ymdShift(today, -1),
   };

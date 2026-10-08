@@ -30,6 +30,7 @@ import {
   alertCardText,
   automationBuildingLabel,
   buildCleaningListMessage,
+  buildFailureAlertText,
   buildHealthAlertText,
   buildDailyReportMessage,
   buildReservationAlertCard,
@@ -41,6 +42,7 @@ import {
   isSameDayBookingSince,
   sameSnapshot,
   type AlertCard,
+  type AutomationFailure,
   type CleaningListModel,
   type DailySnapshot,
   type DailyStats,
@@ -283,10 +285,11 @@ async function recordSkip(
 export async function notifyAutomationFailure(
   supabase: Client,
   organizationId: string,
-  input: { title: string; lines: string[] },
+  failure: AutomationFailure,
 ): Promise<void> {
   const bucket = Math.floor(Date.now() / (15 * 60 * 1000));
-  const key = hashOf(`${input.title}\n${input.lines.join("\n")}`);
+  const key = hashOf(JSON.stringify(failure));
+  const today = tokyoClock(new Date()).date;
   try {
     const [jobs, destinations] = await Promise.all([loadJobs(supabase, organizationId), loadDestinations(supabase, organizationId)]);
     const job = jobs.failure_alert;
@@ -294,8 +297,7 @@ export async function notifyAutomationFailure(
     if (job.enabled && targets.length > 0) {
       for (const destination of targets) {
         for (const locale of destination.locales) {
-          const copy = getDictionary(locale).automationMessages;
-          const text = [fill(copy.failure.title, { title: input.title }), ...input.lines].join("\n");
+          const text = buildFailureAlertText(getDictionary(locale).automationMessages, failure, today);
           await deliver(supabase, {
             dedupeKey: `failure_alert:${key}:${bucket}:${destination.channelKey}:${locale}`,
             destination,
@@ -310,8 +312,7 @@ export async function notifyAutomationFailure(
       }
       return;
     }
-    const copy = getDictionary("ko").automationMessages;
-    await postSlackText([fill(copy.failure.title, { title: input.title }), ...input.lines].join("\n"));
+    await postSlackText(buildFailureAlertText(getDictionary("ko").automationMessages, failure, today));
   } catch (error) {
     console.error("[automation] failure alert failed", error instanceof Error ? error.message : error);
   }
@@ -648,10 +649,7 @@ async function runScheduledJob(supabase: Client, organizationId: string, job: St
       trigger,
     });
     if (giveUp) {
-      await notifyAutomationFailure(supabase, organizationId, {
-        lines: [`job=${jobKey}`, `date=${targetDate}`, `reservation sync=${gate.lastSyncAt ?? "-"}`],
-        title: `${jobKey} gate_stale`,
-      });
+      await notifyAutomationFailure(supabase, organizationId, { date: targetDate, jobKey, kind: "gate_stale", lastSyncAt: gate.lastSyncAt });
       await updateJobState(supabase, organizationId, jobKey, {
         last_done_on: today,
         next_wake_at: computeNextWake({ ...job, lastDoneOn: today, recheckUntil: null }, now)?.toISOString() ?? null,
@@ -673,18 +671,12 @@ async function runScheduledJob(supabase: Client, organizationId: string, job: St
   // 청소 명단 — 필수 정보가 빠진 예약이 있으면 명단 끝 경고와 별도로 관리자에게도 알린다(정시 발송 한 번만).
   const issues = (built.meta.dataIssues as Array<{ code: string; bookingId: string }> | undefined) ?? [];
   if (jobKey === "cleaning_list" && issues.length > 0 && result.sent > 0) {
-    await notifyAutomationFailure(supabase, organizationId, {
-      lines: [`date=${targetDate}`, ...issues.slice(0, 10).map((item) => `${item.code || "?"} · ${item.bookingId || "?"}`)],
-      title: `cleaning_list data_issue (${issues.length})`,
-    });
+    await notifyAutomationFailure(supabase, organizationId, { date: targetDate, issues, kind: "data_issue" });
   }
 
   const done = result.failed === 0 || isPastRetryDeadline(job, now);
   if (result.failed > 0) {
-    await notifyAutomationFailure(supabase, organizationId, {
-      lines: [`job=${jobKey}`, `date=${targetDate}`, `failed=${result.failed}`, `sent=${result.sent}`],
-      title: `${jobKey} send failed`,
-    });
+    await notifyAutomationFailure(supabase, organizationId, { date: targetDate, failed: result.failed, jobKey, kind: "send_failed", sent: result.sent });
   }
   await updateJobState(supabase, organizationId, jobKey, {
     ...(done ? { last_done_on: today } : {}),
@@ -894,7 +886,7 @@ async function scanEventJob(supabase: Client, organizationId: string, job: Store
       }
     }
     if (failed > 0) {
-      await notifyAutomationFailure(supabase, organizationId, { lines: [`job=${jobKey}`, `failed=${failed}`], title: `${jobKey} send failed` });
+      await notifyAutomationFailure(supabase, organizationId, { date: null, failed, jobKey, kind: "send_failed", sent: 0 });
     }
   }
 
@@ -945,7 +937,7 @@ export async function runAutomationTick(supabase: Client, now = new Date()): Pro
         const message = error instanceof Error ? error.message : String(error);
         console.error("[automation] job failed", { job: job.jobKey, message });
         results.push({ jobKey: job.jobKey, organizationId, result: "error" });
-        await notifyAutomationFailure(supabase, organizationId, { lines: [`job=${job.jobKey}`, message.slice(0, 300)], title: `${job.jobKey} error` });
+        await notifyAutomationFailure(supabase, organizationId, { error: message, jobKey: job.jobKey, kind: "error" });
         if (AUTOMATION_JOB_KIND[job.jobKey] === "scheduled") {
           await updateJobState(supabase, organizationId, job.jobKey, {
             next_wake_at: computeNextWake({ ...job, recheckUntil: null }, now, { retryAfterFailure: true })?.toISOString() ?? null,
