@@ -597,6 +597,7 @@ export function TaskCard({
         <button
           aria-label={copy.reorderHandle}
           className="-mr-1 -my-1 flex shrink-0 cursor-grab touch-none items-center self-stretch px-1 text-slate-300 transition-colors active:cursor-grabbing active:text-slate-400"
+          data-swipe-back="off"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -639,7 +640,12 @@ export function TaskCard({
   }
 
   return (
-    <div ref={rootRef} className="relative overflow-hidden rounded-[18px]">
+    <div
+      ref={rootRef}
+      className="relative overflow-hidden rounded-[18px]"
+      // 열려 있는 카드에서 오른쪽으로 밀면 카드를 닫는다 — 화면 스와이프 뒤로가기가 가져가지 않게(16-mobile-navigation).
+      data-swipe-back={offset !== 0 ? "off" : undefined}
+    >
       {/* Reveal: floating rounded action buttons. Only visible while actually swiping — never
           peeks on tap/long-press. Reveal scales/fades in as the card slides for a polished feel. */}
       <div

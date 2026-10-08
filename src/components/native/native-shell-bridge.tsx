@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { isNativeApp } from "@/lib/native-app";
+import { hasOpenOverlay } from "@/lib/swipe-back/controller";
 
 /**
  * 앱(Capacitor) WebView 보정 (2026-10-06, 앱 출시 준비 B3). 루트 레이아웃에 한 번만 둔다. 브라우저 · PWA 에서는 아무것도 안 한다.
@@ -15,7 +16,6 @@ import { isNativeApp } from "@/lib/native-app";
  * 3. **상태바 아이콘** — 어두운 아이콘 고정(앱 화면은 늘 밝다). 2026-10-08 네이티브 품질 N1.
  * 4. **길게 누르기 브라우저 메뉴 차단** — 링크 · 사진의 「링크 주소 복사 · Chrome 에서 열기」 메뉴(입력칸 제외). N8.
  */
-const OVERLAY_SELECTOR = '[aria-modal="true"], [role="dialog"], [data-native-back-overlay]';
 
 export function NativeShellBridge() {
   useEffect(() => {
@@ -88,7 +88,7 @@ export function NativeShellBridge() {
       const listener = await App.addListener("backButton", ({ canGoBack }) => {
         // Esc 를 받지 않는 대화상자도 있다 — 1.2초 안에 다시 눌렀는데도 그대로면 화면 이동으로 넘어간다(먹통 방지).
         const now = Date.now();
-        if (document.querySelector(OVERLAY_SELECTOR) && now - lastEscapeAt > 1200) {
+        if (hasOpenOverlay() && now - lastEscapeAt > 1200) {
           lastEscapeAt = now;
           window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
           return;

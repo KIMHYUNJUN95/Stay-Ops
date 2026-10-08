@@ -1526,6 +1526,8 @@ export function MobileOpsCalendar({
       <div
         aria-label={copy.mGridLabel}
         className="mops-grid"
+        // 격자는 가로로 넘기고 칸을 끌어 고른다 — 화면 스와이프 뒤로가기가 가져가지 않게(16-mobile-navigation).
+        data-swipe-back="off"
         onClick={onGridClick}
         onScroll={onGridScroll}
         ref={scrollerRef}

@@ -9,6 +9,17 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-08 — 모바일 화면 스와이프 뒤로가기 (1 · 2단계)
+
+- 화면 어디서든 오른쪽으로 밀면 뒤로 — 지금 화면이 손가락을 따라 밀리고 이전 화면(떠날 때 DOM 복제)이 iOS 처럼 30% 뒤에서 따라 들어온다.
+  폴드 · 태블릿은 본문 칸만. 메뉴 첫 화면 · 입력을 시작한 폼 · 열린 시트 · 2분할 칸에서는 받지 않는다. `src/lib/swipe-back/*`.
+- 충돌 정리: 밀어서 삭제 줄(알림 · 연차 초안) · 투두 카드는 열렸을 때, 순서 손잡이 · 두 캘린더 격자는 늘 `data-swipe-back="off"`.
+- 함께 고침: 뒤로가기가 늘 「앞으로」 전환을 틀던 것, 스크롤 위치 복원이 첫 프레임 뒤에 되던 것(`useLayoutEffect`).
+- 병목 점검(CPU 4배 감속 · 노드 1만 2천 개): 드래그 시작 1ms · 밑그림 미리 깔기 11~19ms · 복제 5~35ms(한가할 때). 떠나는 순간 복제는
+  200ms(반쯤 바뀐 DOM 강제 배치)라 미리 복제로 바꿨다.
+- 검증: 단위 15 · 전체 test(999) · lint · build, 임시 화면 + 헤드리스 Chromium 터치(폰 · 폴드 · 태블릿 폭, 11개 시나리오). **실기기 · 실제 로그인 화면은
+  아직** — 17번 N12. 문서 `16` 「뒤로가기 — 화면 스와이프」, 결정 `01`.
+
 ## 2026-10-08 — 앱 출시 준비: Android 에뮬레이터 첫 실행 · 로그인 첫 화면 문구
 
 - B1-1: Pixel 8(API 35 · Google Play · x86_64 · Software 그래픽 · Cold boot · RAM 2048MB) 에뮬레이터에서 앱 설치 · 실행 · 로그인 화면 표시 확인.

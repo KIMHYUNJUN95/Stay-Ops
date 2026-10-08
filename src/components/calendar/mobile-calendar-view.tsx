@@ -1003,8 +1003,10 @@ export function MobileCalendarView({
               // `isolate` keeps the sticky layers from ever painting over the shell's bottom tab bar.
               className="isolate flex-1 min-h-0 overflow-auto overscroll-contain rounded-b-[24px] bg-surface"
               onScroll={handleGridScroll}
-              // Stop touches here from bubbling to the shell's left-edge-back / pull-to-refresh
-              // handlers — a horizontal scroll started near the left edge used to fire router.back().
+              // Stop touches here from bubbling to the shell's pull-to-refresh handlers, and keep the
+              // screen swipe-back off the grid — a horizontal scroll must never navigate back
+              // (docs/product/16-mobile-navigation.md 「뒤로가기 — 화면 스와이프」).
+              data-swipe-back="off"
               onTouchMove={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               ref={scrollRef}

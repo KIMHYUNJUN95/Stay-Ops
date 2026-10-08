@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, UIEvent } from "react";
 import { Bell, ChevronRight, LogOut, UserCircle, X } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { BottomSheet } from "@/components/shell/bottom-sheet";
 import { MobileSideNav } from "@/components/shell/mobile-side-nav";
 import { SPLIT_PANE_MESSAGE } from "@/lib/split-pane";
+import { attachSwipeBack } from "@/lib/swipe-back/controller";
+import { isSwipeBackScreen } from "@/lib/swipe-back/history-model";
+import { getHistoryIndex, getHistoryUrl } from "@/lib/swipe-back/history-tracker";
+import { trackScreen } from "@/lib/swipe-back/snapshot-store";
 import { signOut } from "@/app/auth/actions";
 import { updateBottomNavTabs } from "@/app/account/actions";
 import {
@@ -203,6 +207,14 @@ function computeContentOffset(raw: number): number {
 // session (the shell is rendered per page, so this Map is the only thing that persists).
 const SCROLL_POSITIONS = new Map<string, number>();
 
+/**
+ * 메뉴(하단 탭 · 사이드 메뉴)의 첫 화면 — 「뒤」가 없으므로 화면 스와이프 뒤로가기를 받지 않는다(네이티브 탭 앱과 같다).
+ * 그 아래 화면(상세 · 하위 목록 · 작성)과 메뉴 밖에서 여는 화면(알림)만 받는다. docs/product/16-mobile-navigation.md
+ */
+const SWIPE_BACK_ROOTS: ReadonlySet<string> = new Set(
+  [...mobileSidebarNavigation, ...mobileOpsAdminNavigation, mobileNavBugs].map((item) => item.href),
+);
+
 
 export function MobileShell({
   activeItem,
@@ -239,6 +251,8 @@ export function MobileShell({
   const [contentKey, setContentKey] = useState(0);
   const pathname = usePathname();
   const scrollElRef = useRef<HTMLDivElement | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef(0);
   const touchStartXRef = useRef(0);
   const isPullingRef = useRef(false);
@@ -365,8 +379,9 @@ export function MobileShell({
   };
 
   // Restore the saved scroll position for this route on mount (native back-nav behavior). Runs once
-  // per shell mount (the shell remounts per route navigation).
-  useEffect(() => {
+  // per shell mount (the shell remounts per route navigation). A layout effect, so the first painted frame is already at
+  // the saved position — after a swipe back the screen must match the snapshot that was just under the finger.
+  useLayoutEffect(() => {
     const el = scrollElRef.current;
     if (!el) return;
     const saved = SCROLL_POSITIONS.get(routeKey());
@@ -503,6 +518,28 @@ export function MobileShell({
   }, [closeSidebar, sidebarOpen]);
 
   useEffect(() => () => clearSidebarChromeTimer(), [clearSidebarChromeTimer]);
+
+  // 화면 스와이프 뒤로가기(2026-10-08) — 제스처 엔진을 붙이고, 이 화면의 복제본을 한가할 때 만들어 두었다가 떠날 때 맡긴다
+  // (다음 화면에서 밀 때 아래에 깔린다). 뒤로 떠날 때(기록 번호가 줄었을 때)는 맡기지 않는다 — 그 화면으로 다시 「뒤로」 올
+  // 일이 없다. 2분할 칸 안에서는 둘 다 하지 않는다. docs/product/16-mobile-navigation.md 「뒤로가기 — 화면 스와이프」
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    const surface = surfaceRef.current;
+    if (!main || !surface || document.documentElement.hasAttribute("data-pane")) return;
+    const ownIndex = getHistoryIndex();
+    const ownUrl = getHistoryUrl(ownIndex);
+    const capture = trackScreen(main);
+    const detach = attachSwipeBack({
+      isSwipeScreen: () => isSwipeBackScreen(window.location.pathname, SWIPE_BACK_ROOTS),
+      main,
+      surface,
+    });
+    return () => {
+      detach();
+      if (ownUrl && getHistoryIndex() >= ownIndex) capture.commit(ownIndex, ownUrl);
+      capture.dispose();
+    };
+  }, []);
 
   // 2분할 오른쪽 칸(`html[data-pane]`) 안이면 주소가 바뀔 때마다 부모 목록에 알린다 — 상세 밖으로 가면 부모가 칸을 닫는다.
   useEffect(() => {
@@ -656,6 +693,7 @@ export function MobileShell({
     <main
       aria-label={title}
       className="h-dvh overflow-hidden bg-background text-foreground"
+      ref={mainRef}
     >
 
       {/* ── Option-B PTR indicator — fixed at the top, revealed as the whole shell slides down ── */}
@@ -664,6 +702,7 @@ export function MobileShell({
       <div
         aria-atomic="true"
         aria-live="polite"
+        data-ptr-indicator=""
         className="pointer-events-none fixed inset-x-0 top-0 z-[1] flex flex-col items-center justify-center bg-background"
         style={{
           height: `calc(env(safe-area-inset-top, 0px) + ${REFRESH_DISPLAY_H}px)`,
@@ -840,6 +879,9 @@ export function MobileShell({
 
         <div
           className="relative flex h-full w-full flex-col overflow-hidden bg-background pt-[env(safe-area-inset-top)] fold:min-w-0 fold:flex-1"
+          // 화면 스와이프 뒤로가기에서 손가락을 따라 움직이는 판(`translate` — PTR 의 `transform` 과 따로 논다).
+          data-swipe-surface=""
+          ref={surfaceRef}
           style={{
             // z-index: 2 makes this stacking context sit ABOVE the fixed PTR indicator (z-1),
             // so the header is not covered when contentOffset = 0. When pulling, the shell slides
@@ -956,6 +998,8 @@ export function MobileShell({
               data-shell-scroll=""
               className={cn(
                 "h-full overflow-y-auto overscroll-y-contain bg-background px-5 pt-[84px] text-foreground fold:px-7 fold:pt-6",
+                // 가로 이동은 브라우저가 쓰지 않는다 — 화면 스와이프 뒤로가기의 touchmove 를 언제나 막을 수 있게(안쪽 가로 스크롤 영역은 그대로).
+                "touch-pan-y touch-pinch-zoom",
                 // 스크롤바를 숨긴다. 실제 기기에서는 쉴 때 보이지 않는 오버레이 스크롤바인데,
                 // 데스크톱(그리고 어드민의 아이폰 모양 미리보기)에서는 항상 자리를 차지하는 막대가
                 // 생겨 폭 390px 중 15px 을 먹고 기기처럼 보이지도 않는다.

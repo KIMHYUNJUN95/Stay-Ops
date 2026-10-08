@@ -196,6 +196,7 @@ export function ReorderableSectionList({
                     className="flex size-6 touch-none cursor-grab items-center justify-center text-muted-foreground/50 active:cursor-grabbing"
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => beginDrag(e, s)}
+                    data-swipe-back="off"
                     type="button"
                   >
                     <GripVertical className="size-4" aria-hidden="true" />

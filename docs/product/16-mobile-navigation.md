@@ -107,48 +107,85 @@ Implementation note:
 - The initial mobile shell is implemented in `src/components/shell/mobile-shell.tsx`.
 - Any future mobile screen should reuse this navigation contract instead of redefining tabs locally.
 - Navigation labels are localized through `src/lib/i18n.ts` and `src/config/navigation.ts`.
-- **Back navigation = 기기·브라우저의 네이티브 제스처 (2026-09-11 정정).** 모바일 화면은 좌상단
-  뒤로가기 버튼을 그리지 않는다. 뒤로 가기는 **OS·브라우저가 제공하는 엣지 스와이프**가 담당한다.
+- **뒤로가기 — 화면 스와이프 (2026-10-08, 사용자 지시 · 01번 결정 로그).** 모바일 화면은 좌상단 뒤로가기 버튼을
+  그리지 않는다(2026-06-15 결정 유지). 뒤로 가기는 **화면 어디서든 오른쪽으로 미는 제스처**가 맡는다 — 인스타그램 · iOS 26 의
+  화면 전체 뒤로 스와이프와 같은 방식. 가장자리에서만이 아니다.
 
-  **⚠️ 이 절은 2026-09-11 에 사실과 맞췄다.** 아래 「과거 서술」 참고 — 오랫동안 「MobileShell 이
-  엣지 스와이프를 직접 처리한다」고 적혀 있었으나 **그 코드는 존재하지 않는다.**
+  **동작.** 손가락을 따라 지금 화면이 밀리고(그림자), 아래에서 **이전 화면이 30% 뒤에서 따라 들어오며 어둠이 걷힌다**(iOS
+  내비게이션 전환). 놓을 때 폭의 35% 를 넘겼거나 오른쪽으로 빠르게 튕겼으면 이전 화면으로, 아니면 제자리로 스프링. 이동한
+  새 화면은 전환 애니메이션 없이 그 자리에 나타난다(두 번 미끄러지지 않게).
+  - 폰: 화면 전체(상단 바 · 탭 바 포함)가 움직인다.
+  - 폴드 · 태블릿: 레일 · 사이드바는 제자리, **오른쪽 본문만** 움직이고 이전 화면도 그 칸 안에만 보인다(아이패드 앱처럼).
+  - 2분할 칸 안(`html[data-pane]`)과, 태블릿에서 오른쪽 칸이 열려 있는 동안은 받지 않는다(칸의 이동이 같은 history 에 섞인다).
 
-  뒤로가기 버튼을 없앤 결정(2026-06-15)은 유지된다. 근거가 「우리가 구현한 엣지 스와이프」에서
-  「기기가 기본 제공하는 제스처」로 바뀔 뿐이다. 제거 대상이었던 화면도 그대로다:
-  linen-return · requests 상세(수리 / 분실물 / 주문) · 공지 상세 · 작업 상세/생성/편집 · 프로젝트
-  상세, 주문 생성 푸터의 「뒤로」. 새 모바일 화면도 뒤로가기 버튼을 두지 않는다.
+  **어디서 받나.** 메뉴(하단 탭 · 사이드 메뉴 · 운영 관리자 · 버그 신고)의 **첫 화면은 받지 않는다** — 「뒤」가 없다(네이티브 탭
+  앱과 같다; `SWIPE_BACK_ROOTS`). 그 아래 화면(상세 · 하위 목록 · 작성)과 메뉴 밖에서 여는 화면(알림)만 받는다. 갈 곳은
+  「pathname 이 다른 가장 가까운 이전 기록」이다 — 같은 화면 안의 쿼리 이동(`?tab=` · `?month=`)은 화면이 아니므로 건너뛴다.
+  앱 안 이전 기록이 없으면(알림 · 새 탭으로 바로 들어온 경우) 받지 않는다.
 
-  **남긴 것:** 특정 출발점으로 돌아가는 워크플로 버튼(오류 상태의 유일한 탈출구이기도 하다 —
-  예: 수리 / 분실물의 「청소로 돌아가기」 → `/mobile/cleaning`), 그리고 뒤로가기가 아닌 chevron
-  (캘린더 월 이동, 사진 캐러셀, 날짜 선택기). 어드민 웹은 뒤로가기 버튼을 유지한다(데스크톱에는
-  터치 스와이프가 없다).
+  **우선순위(iOS 26 과 같은 규칙).**
+  1. 열린 시트 · 대화상자 · 사이드 메뉴 · 사진 뷰어가 있으면 받지 않는다(`hasOpenOverlay` — Android 뒤로가기 버튼과 같은 판정).
+  2. `[data-swipe-back="off"]` 안, 입력칸 · 선택 · 편집 영역, 슬라이더 위에서는 받지 않는다.
+  3. 가로 스크롤 영역이 **왼쪽으로 더 갈 수 있으면** 스크롤이 먼저, 왼쪽 끝에 닿아 있으면 뒤로가기.
+  4. 첫 10px 이 세로이거나 왼쪽이면 그 터치는 끝까지 스크롤 몫(약 40° 안쪽의 오른쪽 이동만 뒤로가기).
+  5. **입력을 시작한 화면(작성 · 수정 폼)은 받지 않는다** — 실수로 밀어 쓰던 내용을 잃지 않게. 그런 화면은 OS 뒤로가기만.
+  6. iOS Safari **탭**에서는 왼쪽 24px 를 Safari 의 가장자리 뒤로가기에 비켜 준다. 설치한 PWA · 앱은 가장자리도 우리가 받는다.
 
-  **앱(Capacitor) Android 하드웨어 뒤로가기 (2026-10-06):** `NativeShellBridge` 가 받는다. 열린 오버레이(`[aria-modal="true"]` ·
-  `[role="dialog"]` · `[data-native-back-overlay]`)가 있으면 window 에 Esc 를 보내 닫고(BottomSheet · 사진 뷰어 · 사이드 메뉴가 이미 Esc 로
-  닫힌다), 없으면 `history.back()`, 갈 곳이 없으면 앱 최소화. Esc 를 안 받는 대화상자에서 막히지 않게 1.2초 안에 다시 누르면 화면 이동.
-  셸 쪽 변경은 표식뿐이다 — 사이드 메뉴 `<aside>` 가 열려 있을 때 `data-native-back-overlay`, `ImageLightbox` 루트에 같은 표식.
-  새 전체 화면 오버레이를 만들면 Esc 로 닫히게 하고 `role="dialog"` 나 이 표식을 붙인다.
+  **새 화면 · 컴포넌트 규칙.** 자체 가로 제스처(밀어서 삭제 줄, 캐러셀, 끌어 고르는 격자, 순서 바꾸기 손잡이)를 만들면
+  그 요소에 `data-swipe-back="off"` 를 단다 — 밀어서 여는 줄은 **열려 있을 때만**(닫힌 줄을 오른쪽으로 밀면 뒤로가기).
+  지금 붙은 곳: 알림 · 연차 초안 밀어서 삭제 줄(열렸을 때), 투두 카드(열렸을 때) · 순서 손잡이 · 섹션 손잡이, 예약 캘린더 ·
+  판매 캘린더 격자. 몸통이 `<body>` 로 포털되는 시트 · 뷰어는 애초에 판 밖이라 표식이 필요 없다. 새 전체 화면 오버레이는
+  Esc 로 닫히게 하고 `role="dialog"` 나 `data-native-back-overlay` 를 붙인다(위 1번 · Android 뒤로가기 버튼이 함께 쓴다).
 
-  **직접 구현하지 않는다.** 네이티브 제스처 위에 자체 구현을 얹으면 **두 번 뒤로 가거나** 가로
-  스크롤과 싸운다 — 실제로 겪었다(`mobile-calendar-view.tsx` 주석: 「왼쪽 가장자리에서 시작한
-  가로 스크롤이 `router.back()` 을 발동시키곤 했다」). 제거된 것도 그 때문으로 보인다.
+  **구현** (`src/lib/swipe-back/*`, 셸 연결은 `MobileShell`):
+  - `history-tracker.ts` — `pushState` · `replaceState` 를 감싸 **기록마다 번호(`history.state.__so`)** 를 붙이고, 번호 → 주소 표를
+    sessionStorage 에 둔다. 뒤로 · 앞으로(popstate)는 번호로 방향을 정확히 안다. Next 가 매 렌더 state 를 갈아 써도 래퍼가 번호를
+    다시 붙인다. 루트 레이아웃의 `HistoryTrackerBoot` 가 켠다.
+  - `snapshot-store.ts` — 「아래에 깔리는 이전 화면」. Next 는 이동하면 이전 화면을 없애므로 **화면의 보이는 부분을 DOM 으로
+    복제**해 기록 번호별로 둔다(최근 5개). 이미지가 아니라 같은 DOM · CSS 라 선명하고 네이티브 빌드가 필요 없다. 화면 밖 요소는
+    같은 크기의 빈 칸으로(연달아 밖인 형제는 칸 하나로) 바꿔 노드 1만 2천 개 화면도 350개 남짓이 된다. 복제는 **한가할 때 미리**
+    (화면이 뜬 뒤 · 스크롤 · 내용이 바뀐 뒤) 하고, 떠날 때는 맡기기만 한다 — 떠나는 커밋 안에서 복제하면 반쯤 바뀐 DOM 을 통째로
+    다시 배치해 긴 목록에서 200ms 가 들었다(CPU 4배 감속 측정, 미리 복제로 5~35ms). id 는 지운다.
+  - `controller.ts` — 제스처 엔진. React 밖에서 판(`[data-swipe-surface]`)에 `translate` 를 직접 써서 미는 동안 렌더 0회. 밑그림
+    층은 `body` 맨 끝 `position: fixed; z-index: -1; contain: strict` 로 **한가할 때 미리 깔아 두고**(보이지 않게) 밀 때 보이게만 한다
+    (드래그 시작 1ms). 미는 동안만 `<main>` · `<body>` 바탕을 투명하게 해 판 뒤로 이 층이 보인다. 이동은 `history.go(-n)`, 옛 판이
+    DOM 에서 빠지는 순간(MutationObserver — 그리기 전) 층을 걷는다. 4초 안에 이동이 안 되면 제자리로.
+  - 순수 판정(`history-model.ts` — 갈 곳 · 방향 잠금 · 놓을 때 판정 · 마무리 시간)은 `src/lib/__tests__/swipe-back.test.ts`.
+  - 셸: 스크롤 영역에 `touch-action: pan-y pinch-zoom`(가로 이동은 브라우저가 쓰지 않아 touchmove 를 언제나 막을 수 있다), 스크롤
+    위치 복원을 `useLayoutEffect` 로(첫 프레임부터 밑그림과 같은 자리).
 
-  **확인되지 않은 경우 — 홈 화면에 설치한 standalone.** 브라우저 탭에서 네이티브 제스처가 도는
-  것은 확인했다(사용자, 2026-09-11). `manifest.webmanifest` 의 `display: standalone` 으로 설치하면
-  브라우저 UI 가 사라지는데, 그 상태에서도 제스처가 도는지는 **확인하지 않았다.** 안 된다면 그
-  경우에만 뒤로 갈 수단이 없다 — 실측 후 이 줄을 갱신할 것.
+  **전환 방향(`src/lib/nav-direction.ts`) 고침.** 2026-10-08 전까지는 「뒤로」를 세우는 코드가 없어 **모든 뒤로가기가 앞으로 미는
+  애니메이션**을 틀었다. 이제 popstate 를 기록 번호로 판정해 OS 뒤로가기 · Android 뒤로가기 버튼은 `screen-pop`, 화면 스와이프와
+  브라우저가 이미 애니메이션한 경우(`PopStateEvent.hasUAVisualTransition` — Safari 가장자리 스와이프)는 애니메이션 없음. 전환 클래스는
+  끝나면 뗀다(`animation-fill-mode: both` 가 남긴 transform 이 화면 내내 쌓임 맥락 · 고정 위치 기준이 되던 것). 템플릿은 `/mobile`
+  아래 첫 구획이 바뀔 때만 다시 그려지므로 같은 구획 안 이동에는 원래 전환이 없다.
 
-  <details><summary>과거 서술 (2026-06-15 ~ 2026-09-11, 코드에 없음)</summary>
+  **남긴 것:** 특정 출발점으로 돌아가는 워크플로 버튼(오류 상태의 유일한 탈출구이기도 하다 — 예: 수리 / 분실물의 「청소로
+  돌아가기」 → `/mobile/cleaning`), 뒤로가기가 아닌 chevron(캘린더 월 이동, 사진 캐러셀, 날짜 선택기). 어드민 웹은 뒤로가기 버튼을
+  유지한다(데스크톱에는 터치 스와이프가 없다).
 
-  「`MobileShell` 이 `<main>` 에서 `handleSwipeStart` / `handleSwipeMove` / `handleSwipeEnd` /
-  `handleSwipeCancel` 로 처리하고, 왼쪽 ~30px 에서 시작한 드래그가 좌측 그라데이션 그림자와 chevron
-  힌트를 띄우며, ~64px 을 넘겨 놓으면 `router.back()`, 오른쪽 엣지는 `router.forward()`. 2026-06-22
-  에 `goBack()` 이 `window.history.length <= 1` 이면 `router.push("/mobile")` 로 대신한다」고
-  적혀 있었다.
+  **앱(Capacitor) Android 하드웨어 뒤로가기 (2026-10-06):** `NativeShellBridge` 가 받는다. 열린 오버레이가 있으면(`hasOpenOverlay` —
+  밑그림 복제본 속 표식은 세지 않는다) window 에 Esc 를 보내 닫고(BottomSheet · 사진 뷰어 · 사이드 메뉴가 이미 Esc 로 닫힌다), 없으면
+  `history.back()`, 갈 곳이 없으면 앱 최소화. Esc 를 안 받는 대화상자에서 막히지 않게 1.2초 안에 다시 누르면 화면 이동. 셸 쪽 표식 —
+  사이드 메뉴 `<aside>` 가 열려 있을 때 `data-native-back-overlay`, `ImageLightbox` 루트에 같은 표식.
 
-  2026-09-11 전수 확인 결과 `handleSwipe*` · `edgeDx` · `edgeRawDxRef` · 셸의 `goBack` 중
-  **어느 것도 코드에 없다.** 같은 시기에 적힌 PTR 관련 서술(`ptrEligibleRef` 등)은 지금도 유효하다 —
-  엣지 백 부분만 제거되고 문서가 남은 것이다.
+  **남은 일(앱 출시 계획 17번 N12).** Android 시스템 가장자리 제스처의 「예측 뒤로가기」 미리보기 연결(네이티브 진행률 → 같은 엔진),
+  iOS 앱 · Android 앱 · 설치한 PWA 실기기 확인.
+
+  <details><summary>과거 서술 — 2026-09-11 「직접 구현하지 않는다」 결정과 그 전의 엣지 스와이프 (코드에 없음)</summary>
+
+  2026-09-11: 「뒤로 가기는 OS·브라우저가 제공하는 엣지 스와이프가 담당한다. 네이티브 제스처 위에 자체 구현을 얹으면 두 번 뒤로
+  가거나 가로 스크롤과 싸운다 — `mobile-calendar-view.tsx` 주석: 「왼쪽 가장자리에서 시작한 가로 스크롤이 `router.back()` 을
+  발동시키곤 했다」.」 2026-10-08 에 사용자 지시로 뒤집었다 — 가장자리 · 가로 스크롤 충돌은 위 우선순위(가장자리 비켜 주기, 가로
+  스크롤 먼저, 방향 잠금)로 막는다. 또 iOS 앱(WKWebView)은 `allowsBackForwardNavigationGestures` 가 꺼져 있어 **OS 가장자리
+  제스처조차 없었다**.
+
+  2026-06-15 ~ 2026-09-11 문서는 「`MobileShell` 이 `<main>` 에서 `handleSwipeStart` / `handleSwipeMove` / `handleSwipeEnd` /
+  `handleSwipeCancel` 로 처리하고, 왼쪽 ~30px 에서 시작한 드래그가 좌측 그라데이션 그림자와 chevron 힌트를 띄우며, ~64px 을 넘겨
+  놓으면 `router.back()`, 오른쪽 엣지는 `router.forward()`. 2026-06-22 에 `goBack()` 이 `window.history.length <= 1` 이면
+  `router.push("/mobile")` 로 대신한다」고 적고 있었으나, 2026-09-11 전수 확인 결과 그 코드는 없었다. 아래 「Edge-back zero-render
+  hint」 · 「PTR / edge-swipe mutual exclusion」 · 「navigatingRef」 · 「Springback animation fix」 · 「nav-direction TTL」 항목도 같은
+  사라진 구현의 기록이다(이력으로 남긴다).
 
   </details>
 
@@ -472,7 +509,7 @@ Current rules:
 - **Known deferred**: the shell still renders per-page (no shared `mobile/layout.tsx`), so it remounts on navigation (header scroll state resets; bottom-tab active highlight updates on arrival, not instantly on tap). A true persistent shell needs a route-group restructure to exempt the no-shell screens (`/mobile/notifications`, attendance capture) — deferred.
 - **Press feedback (2026-06-22)**: tappable controls give a native press response — the shared `Button` (`ui/button.tsx`) has `active:` states + `active:scale-[0.98]`, bottom tab items and notification rows depress on `:active`. Because Tailwind v4 only applies `hover:` on hover-capable devices, new touch controls must use `active:` (not hover) for tap feedback.
 - **Double-submit guard (2026-06-22)**: `<form action={serverAction}>` submit buttons use the shared `SubmitButton` (`ui/submit-button.tsx`, `useFormStatus`) which disables + shows a spinner while the action is in flight — prevents double-submit and the dead-button feel. New server-action forms should use it (or `disabled={isPending}` with `useTransition`).
-- **Calendar gesture isolation (2026-06-22)**: the horizontal calendar grid `stopPropagation`s its touch events so a left-edge horizontal scroll doesn't trigger the shell's edge-back. Any full-width horizontal scroller inside the shell should do the same.
+- **Calendar gesture isolation (2026-06-22, 2026-10-08 갱신)**: the horizontal calendar grid `stopPropagation`s its touch events (pull-to-refresh) and carries `data-swipe-back="off"` so a horizontal scroll never triggers the screen swipe-back (React `stopPropagation` does not stop the swipe engine's native listener — the marker does). Any full-width horizontal scroller or drag grid inside the shell should carry the same marker; see 「뒤로가기 — 화면 스와이프」.
 - **Tab re-tap scrolls to top (2026-06-22)**: tapping the already-active bottom tab `preventDefault`s the navigation and smooth-scrolls the content container to top (native behavior) instead of a no-op.
 - **Double flash when opening a screen — fixed (2026-08-04)**: the SW paints a cached document
   instantly, then messaged the client to `router.refresh()` **on every cacheable navigation**, so

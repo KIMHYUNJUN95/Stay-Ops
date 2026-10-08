@@ -214,6 +214,8 @@ function SwipeItem({
       {/* Swipeable content — touch handlers here, not on the .notif button */}
       <div
         ref={contentRef}
+        // 열린 줄을 오른쪽으로 밀면 줄을 닫는다 — 화면 스와이프 뒤로가기가 가져가지 않게(16-mobile-navigation).
+        data-swipe-back={isOpen ? "off" : undefined}
         onTouchCancel={handleTouchCancel}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
