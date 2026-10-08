@@ -224,7 +224,11 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
   `mipmap-*`(적응형 배경 · 전경) · `drawable*/splash.png`, 스토어 원본 `store-assets/icon-1024.png` · `play-icon-512.png` 를 만든다.
   Android 시작 화면은 `res/values/styles.xml` 의 `windowSplashScreen*`(아이보리 바탕 + 남색 원 — core-splashscreen 이 Android 7~11 에도 같은 모양으로).
   `drawable*/splash.png` 비트맵은 **쓰지 않는다**: 시작 테마 `android:background` 로 깔았더니 화면 비율에 맞지 않게 늘어나 로고가 잠깐 엉뚱한 위치에
-  보였다(N11). 시작 테마 바탕 · WebView 바탕(`capacitor.config.ts` `backgroundColor`)은 아이보리 단색. 정식 로고가 생기면 스크립트의
+  보였다(N11). 시작 테마 바탕 · WebView 바탕(`capacitor.config.ts` `backgroundColor`)은 아이보리 단색.
+  시작 화면 아이콘은 `drawable-nodpi/splash_icon.png`(960px — 240dp 로 그려지므로 108dp 전경을 쓰면 흐리다).
+  **웹 시작 화면(`src/components/pwa/splash-screen.tsx`)은 앱에서 숨긴다** — `SPLIT_PANE_BOOT_SCRIPT` 앞부분이 그리기 전에
+  `html[data-native-app]` 을 달고 `globals.css` 가 `[data-splash]` 를 감춘다. 겹치면 OS 시작 화면의 큰 원 아이콘 → 웹의 작은 네모 아이콘으로
+  로고가 순간 이동했다(N11). 브라우저 · PWA 에서는 웹 시작 화면이 그대로 뜬다. 정식 로고가 생기면 스크립트의
   `mark()` 만 바꾸고 다시 돌린 뒤 `npm run cap:android:win`.
 
 ## Initial Web Hosting

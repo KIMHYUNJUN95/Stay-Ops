@@ -375,6 +375,10 @@ html[data-pane] [data-splash],
 html[data-pane] .tabbar {
   display: none !important;
 }
+/* 앱(Capacitor) 안 — OS 시작 화면이 이미 있으므로 웹 시작 화면을 겹쳐 띄우지 않는다(N11, `split-pane.ts` 부트 스크립트). */
+html[data-native-app] [data-splash] {
+  display: none !important;
+}
 html[data-pane] [data-shell-frame] { max-width: none !important; }
 html[data-pane] [data-shell-scroll] { padding: 18px 24px 32px !important; }
 html[data-pane] [data-shell-column] { max-width: 760px !important; margin-inline: auto; }

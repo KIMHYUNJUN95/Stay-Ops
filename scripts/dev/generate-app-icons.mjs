@@ -85,6 +85,10 @@ for (const [d, k] of Object.entries(densities)) {
   await out(`${res}/mipmap-${d}/ic_launcher_background.png`, await png(mark(adaptive, { glyph: 0 }).replace(/<text[\s\S]*?<\/text>/, "")));
 }
 
+// Android 12+ 시작 화면 아이콘 — 240dp(xxxhdpi 960px)로 그려지므로 108dp 전경(최대 432px)을 쓰면 늘어나 흐려진다(N11).
+// 밀도 무관(drawable-nodpi) 960px 한 장. 남색 원(windowSplashScreenIconBackgroundColor) 위 가운데 "S".
+await out(`${res}/drawable-nodpi/splash_icon.png`, await png(mark(960, { background: false, glyph: 0.4 })));
+
 const splashSizes = {
   "drawable": [480, 320],
   "drawable-port-mdpi": [320, 480],

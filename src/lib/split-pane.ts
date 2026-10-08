@@ -30,7 +30,10 @@ export function matchesDetail(pattern: RegExp, path: string): boolean {
  * 프레임 이름은 프레임 안에서 주소가 바뀌어도 남는다. 칸 안에서 서버 액션(POST + `next-action` 머리)이 끝나면 부모에
  * 「바뀜」을 알려 왼쪽 목록을 새로 읽게 한다.
  */
-export const SPLIT_PANE_BOOT_SCRIPT = `(function(){try{if(window.top===window.self||window.name!=="${SPLIT_PANE_NAME}")return;document.documentElement.setAttribute("data-pane","1");var f=window.fetch;window.fetch=function(i,o){var p=f.apply(this,arguments);try{var h=o&&o.headers;var a=h&&(typeof h.get==="function"?(h.get("next-action")||h.get("Next-Action")):(h["next-action"]||h["Next-Action"]));if(a){p.then(function(){window.parent.postMessage({type:"${SPLIT_PANE_MESSAGE}",kind:"mutated"},window.location.origin)},function(){})}}catch(e){}return p}}catch(e){}})();`;
+// 앞부분: 앱(Capacitor) 안이면 그리기 전에 `html[data-native-app]` 을 단다(2026-10-08, 네이티브 품질 N11). Capacitor 는 브리지를
+// 문서 시작 시점에 주입하므로 여기서 이미 보인다. 앱은 OS 시작 화면이 있으니 웹 시작 화면(`[data-splash]`)을 겹쳐 띄우지 않는다
+// (globals.css) — 겹치면 큰 원 아이콘 → 작은 네모 아이콘(튀어나오는 애니메이션)으로 로고가 순간 이동 · 흐려 보였다.
+export const SPLIT_PANE_BOOT_SCRIPT = `(function(){try{var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform())document.documentElement.setAttribute("data-native-app","1")}catch(e){}})();(function(){try{if(window.top===window.self||window.name!=="${SPLIT_PANE_NAME}")return;document.documentElement.setAttribute("data-pane","1");var f=window.fetch;window.fetch=function(i,o){var p=f.apply(this,arguments);try{var h=o&&o.headers;var a=h&&(typeof h.get==="function"?(h.get("next-action")||h.get("Next-Action")):(h["next-action"]||h["Next-Action"]));if(a){p.then(function(){window.parent.postMessage({type:"${SPLIT_PANE_MESSAGE}",kind:"mutated"},window.location.origin)},function(){})}}catch(e){}return p}}catch(e){}})();`;
 
 /**
  * 목록마다 오른쪽 칸에 열 상세 주소. 새로 만들기 · 하위 목록(처리 끝난 분실물 등)은 빼고, 상세의 수정 화면은 칸 안에 둔다.
