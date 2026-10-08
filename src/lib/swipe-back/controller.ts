@@ -20,6 +20,7 @@
 import { clearNavDirection, setNavDirection } from "@/lib/nav-direction";
 import { getBackTarget } from "./history-tracker";
 import { decideCommit, decideLock, settleDuration } from "./history-model";
+import { swipeDebug } from "./debug";
 import { getSnapshot, restoreSnapshotScroll } from "./snapshot-store";
 
 /** 이전 화면이 시작하는 자리 — 화면 폭의 30% 왼쪽(iOS 내비게이션 전환과 같다). */
@@ -294,18 +295,21 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
   function onTouchStart(event: TouchEvent) {
     if (phase === "settling" || phase === "navigating") return;
     reset();
-    if (event.touches.length !== 1 || dirty || !isSwipeScreen()) return;
-    if (document.documentElement.hasAttribute("data-pane") || isSplitPaneOpen()) return;
-    if (hasOpenOverlay()) return;
+    if (event.touches.length !== 1) return;
+    if (dirty) return swipeDebug("start: skip — typed on this screen");
+    if (!isSwipeScreen()) return swipeDebug("start: skip — menu root screen");
+    if (document.documentElement.hasAttribute("data-pane") || isSplitPaneOpen()) return swipeDebug("start: skip — split pane");
+    if (hasOpenOverlay()) return swipeDebug("start: skip — overlay open");
     const touch = event.touches[0];
     const element = event.target instanceof Element ? event.target : null;
-    if (element?.closest(BLOCKED_TARGET_SELECTOR)) return;
-    if (touch.clientX < SAFARI_EDGE && isIosSafariTab()) return;
+    if (element?.closest(BLOCKED_TARGET_SELECTOR)) return swipeDebug("start: skip — blocked target");
+    if (touch.clientX < SAFARI_EDGE && isIosSafariTab()) return swipeDebug("start: skip — safari edge");
     target = getBackTarget();
-    if (!target) return;
+    if (!target) return swipeDebug("start: skip — no back target");
     startX = touch.clientX;
     startY = touch.clientY;
     phase = "pending";
+    swipeDebug(`start: pending at ${Math.round(startX)},${Math.round(startY)}`);
   }
 
   function onTouchMove(event: TouchEvent) {
@@ -326,9 +330,11 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
         // 통째로 무시됐다(2026-10-08 아이폰에서 「반응 없음」). 아직 판정 전이라도 오른쪽으로 뚜렷이 가로인 움직임이면
         // 브라우저의 팬 시작부터 막는다. 세로가 섞인 움직임은 건드리지 않는다(세로 스크롤은 그대로).
         if (dx > 2 && dx > Math.abs(dy) * 1.5 && event.cancelable) event.preventDefault();
+        if (!event.cancelable) swipeDebug(`move: not cancelable at dx ${Math.round(dx)}`);
         return;
       }
       if (decision === "reject" || hasLeftScrollableAncestor(event.target instanceof Element ? event.target : null, surface)) {
+        swipeDebug(decision === "reject" ? `move: reject dx ${Math.round(dx)} dy ${Math.round(dy)}` : "move: inner scroller first");
         reset();
         return;
       }
@@ -336,6 +342,7 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
       phase = "dragging";
       lockDx = dx;
       beginDrag();
+      swipeDebug(`move: drag (cancelable ${event.cancelable}, layer ${layer ? "yes" : "no"})`);
     }
 
     if (event.cancelable) event.preventDefault();
@@ -348,12 +355,14 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
 
   function onTouchEnd(event: TouchEvent) {
     if (phase === "pending") {
+      swipeDebug(`${event.type}: before lock`);
       reset();
       return;
     }
     if (phase !== "dragging") return;
     const speed = velocity();
     const commit = event.type === "touchend" && decideCommit(offset, speed, width);
+    swipeDebug(`${event.type}: offset ${Math.round(offset)}/${Math.round(width)} v ${speed.toFixed(2)} → ${commit ? "back" : "cancel"}`);
     if (commit) {
       settle(width, settleDuration(width - offset, speed), navigate);
     } else {

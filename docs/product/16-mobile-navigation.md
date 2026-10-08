@@ -153,6 +153,11 @@ Implementation note:
   - **iOS(WebKit) 팬 선점 (2026-10-08 `c5cdf12`)**: iOS 는 방향 판정(10px) 전에 스크롤 팬을 시작해, 그 뒤 touchmove 를 막을 수 없어
     아이폰에서 제스처가 통째로 무시됐다(Chromium 은 `touch-action` 이 막아 재현 안 됨). 판정 전이라도 오른쪽으로 뚜렷이 가로인 움직임
     (dx > 1.5|dy|)이면 첫 touchmove 부터 막고, 막을 수 없는 touchmove 여도 가로로 잠갔으면 계속 간다.
+  - **실기기 진단 표시 (2026-10-09, `src/lib/swipe-back/debug.ts`)**: 홈 화면 앱 · 앱 셸에는 주소창이 없어, **세 손가락으로 한 번
+    탭**하면 켜고 끈다(그 기기 localStorage `stayops:swipe-debug`). 화면 위에 빌드(`NEXT_PUBLIC_BUILD_SHA` — Vercel 커밋 앞 7자리) ·
+    standalone 여부 · 기록 번호 · 돌아갈 곳 · 최근 터치 8개를 왜 받았는지/안 받았는지(메뉴 첫 화면 · 열린 시트 · 막힌 대상 · 갈 곳 없음 ·
+    판정 전 놓음 · 세로로 거절 · 막을 수 없는 touchmove · 놓을 때 거리/속도)를 띄운다. 개발자용이라 번역하지 않는다. 꺼져 있으면 비용 0.
+    홈 화면 앱은 SW 가 HTML 을 stale-while-revalidate 로 내줘 **배포 뒤 첫 실행은 옛 빌드**다 — 빌드 표시로 먼저 확인한다.
   - 순수 판정(`history-model.ts` — 갈 곳 · 방향 잠금 · 놓을 때 판정 · 마무리 시간)은 `src/lib/__tests__/swipe-back.test.ts`.
   - 셸: 스크롤 영역에 `touch-action: pan-y pinch-zoom`(가로 이동은 브라우저가 쓰지 않아 touchmove 를 언제나 막을 수 있다), 스크롤
     위치 복원을 `useLayoutEffect` 로(첫 프레임부터 밑그림과 같은 자리).
