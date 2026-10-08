@@ -376,7 +376,7 @@ These are shortcuts into the same core modules, not separate temporary records.
 
 Completion photo upload is useful, but one room may generate about 30 photos.
 
-This can create significant storage and bandwidth cost if every photo is uploaded to StayOps.
+This can create significant storage and bandwidth cost if every photo is uploaded to Foldy.
 
 ## Recommended Photo Strategy for MVP
 
@@ -407,7 +407,7 @@ Only upload photos when reporting:
 
 ### Option C: External Photo Link
 
-Continue using KakaoTalk or another external photo workflow for bulk photos, and store only a link or note in StayOps later.
+Continue using KakaoTalk or another external photo workflow for bulk photos, and store only a link or note in Foldy later.
 
 ## Current Recommendation
 
@@ -666,7 +666,7 @@ A date-grouped **cleaning record sheet** so staff can review their cleaning hist
 
 ### 2026-07-14 디자인 구현 완료 (mock 데이터, 백엔드 연동 전)
 
-Claude Design 핸드오프(`StayOps 청소 (admin)/청소 현황 (admin).html`)를 1:1로 React/TSX 이식했다.
+Claude Design 핸드오프(`Foldy 청소 (admin)/청소 현황 (admin).html`)를 1:1로 React/TSX 이식했다.
 **정적 mock 데이터**로 화면 A/B를 모두 구현했고, 실제 `cleaning_sessions`/예약 연동은 아직 하지
 않았다 — 위 "디자인 프롬프트" 절이 정의한 범위(디자인 100%) 까지만 완료된 상태다.
 

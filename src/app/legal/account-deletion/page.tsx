@@ -11,7 +11,7 @@ type PageProps = { searchParams: Promise<{ lang?: string }> };
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const locale = await resolvePublicLocale((await searchParams).lang);
-  return { title: `${accountDeletion[locale].title} · StayOps` };
+  return { title: `${accountDeletion[locale].title} · Foldy` };
 }
 
 /** 계정 삭제 안내 — Google Play 「계정 삭제 URL」. 앱을 지운 사람도 웹에서 삭제 · 요청할 수 있어야 한다. */

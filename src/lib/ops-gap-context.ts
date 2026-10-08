@@ -2,7 +2,7 @@
  * 1박 갭의 **앞뒤 맥락** — 「무엇과 무엇 사이에 낀 하루인가」.
  *
  * 도메인 계약: `docs/product/33-calendar-write-features.md` → 「1박 갭 감지」
- * 시안: Claude Design 「StayOps 운영 관리자 영역」 `6-minstay.dc.html` → 갭 목록
+ * 시안: Claude Design 「Foldy 운영 관리자 영역」 `6-minstay.dc.html` → 갭 목록
  *
  * ## 왜 필요한가
  *

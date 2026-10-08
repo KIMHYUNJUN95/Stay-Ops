@@ -1,6 +1,6 @@
 # Internal Rollout Guide
 
-This guide covers the steps to deploy StayOps for the first group of internal staff.  
+This guide covers the steps to deploy Foldy for the first group of internal staff.  
 For the QA checklist and release-readiness summary, see `docs/planning/13-qa-checklist.md`.
 
 ---
@@ -84,7 +84,7 @@ Share codes directly with staff (e.g. LINE, Slack, in person). Codes are not tim
 
 Each staff member follows this flow on first use:
 
-1. Open the StayOps URL in their browser on their phone.
+1. Open the Foldy URL in their browser on their phone.
 2. **Install as PWA** (optional but recommended):
    - iOS Safari: tap the Share icon → "Add to Home Screen"
    - Android Chrome: tap the menu → "Add to Home Screen" or "Install app"

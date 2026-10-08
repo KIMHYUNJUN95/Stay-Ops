@@ -1,6 +1,6 @@
-# StayOps
+# Foldy
 
-StayOps is a multilingual hotel and accommodation operations platform for field staff and office/admin staff.
+Foldy is a multilingual hotel and accommodation operations platform for field staff and office/admin staff.
 
 The project starts as an internal company operations app and may later become a public product for other accommodation operators.
 
@@ -60,7 +60,7 @@ Keep the service role key server-only and never paste it into chat or documentat
 
 ## Product Scope
 
-StayOps supports:
+Foldy supports:
 
 - Mobile PWA for field staff and part-time staff
 - Admin web app for office/admin users

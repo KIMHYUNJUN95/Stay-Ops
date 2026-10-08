@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the practical development order for StayOps MVP.
+This document defines the practical development order for Foldy MVP.
 
 It should be followed by Codex, Claude, Cursor, and any other AI or human contributor.
 
@@ -255,7 +255,7 @@ Current implementation notes:
 - Development entry page is available at `/`.
 - The session provider is now backed by server-loaded Supabase session data.
 - Temporary mock session data remains only as a development reference in `src/lib/session.ts`.
-- **Global mobile shell unified (current contract):** `MobileShell` owns the shared mobile chrome: three-line hamburger with a shorter middle line, centered `Stay Ops` wordmark, notification bell, profile link, scroll-aware top chrome, full-screen slide-in side menu, and a bottom-attached ivory tab bar with a raised center squircle FAB. The canvas/chrome is warm ivory, cards/sheets use cream-white surfaces, and the accent is deep navy. `title` drives `<main aria-label>` only. Future mobile pages must not override the shell structure without an explicit architectural decision.
+- **Global mobile shell unified (current contract):** `MobileShell` owns the shared mobile chrome: three-line hamburger with a shorter middle line, centered `Foldy` wordmark, notification bell, profile link, scroll-aware top chrome, full-screen slide-in side menu, and a bottom-attached ivory tab bar with a raised center squircle FAB. The canvas/chrome is warm ivory, cards/sheets use cream-white surfaces, and the accent is deep navy. `title` drives `<main aria-label>` only. Future mobile pages must not override the shell structure without an explicit architectural decision.
 
 ## Phase 6: User Profile and Directory
 
@@ -578,7 +578,7 @@ Implementation update (2026-06-02):
 - Sparse cancellation payloads are accepted for webhook handling when they carry a booking ID plus cancellation signals, even if stay dates are omitted.
 - Current multi-room persistence rule remains the compatible rollout:
   - database uniqueness is still `(organization_id, source, source_reservation_id)`
-  - StayOps stores room-assignment identity inside `source_reservation_id` as `"{originalReservationId}::room::{room_label}"`
+  - Foldy stores room-assignment identity inside `source_reservation_id` as `"{originalReservationId}::room::{room_label}"`
 - Mobile calendar room rendering now separates:
   - internal room identity (`canonicalRoomLabel`)
   - display room row label (`displayRoomLabel`)
@@ -885,7 +885,7 @@ For every phase:
 
 ## 2026-05-24 Beds24 Active Room ID Rule
 
-- Before implementing `properties` / `rooms` master sync, StayOps must apply a company-specific active-room filter to Beds24 room data.
+- Before implementing `properties` / `rooms` master sync, Foldy must apply a company-specific active-room filter to Beds24 room data.
 - Some buildings rotate between two Beds24 room ID groups over the year.
 - Internal rule: if the Beds24 minimum stay is `50 nights or more`, that room ID group is treated as inactive for that period.
 - Normal operational minimum stay values such as `1`, `2`, or `3` nights identify the active room ID group.

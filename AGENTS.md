@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This file defines project-specific rules for Codex and other AI coding agents working on StayOps.
+This file defines project-specific rules for Codex and other AI coding agents working on Foldy.
 
-StayOps is not a generic Next.js demo. It is an operations product for accommodation teams. UI changes, permission changes, workflow changes, and data-model changes can create real operational risk. Keep docs and code aligned at all times.
+Foldy is not a generic Next.js demo. It is an operations product for accommodation teams. UI changes, permission changes, workflow changes, and data-model changes can create real operational risk. Keep docs and code aligned at all times.
 
 ## Highest Priority Rules
 
@@ -31,7 +31,7 @@ Before making changes, read in this order:
 
 ## Project Snapshot
 
-- Product: StayOps
+- Product: Foldy
 - Domain: accommodation and hotel operations
 - Users: field staff, part-time staff, office/admin staff
 - Languages: Korean, Japanese, English from the start
@@ -70,7 +70,7 @@ npm run cleaning:normalize-room-labels
 
 ### 1. Documentation-first workflow
 
-StayOps follows this baseline workflow:
+Foldy follows this baseline workflow:
 
 ```txt
 Plan -> Design -> Document -> Implement -> Test -> Review -> Update documentation

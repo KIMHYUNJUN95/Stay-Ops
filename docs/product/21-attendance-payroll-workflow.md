@@ -121,7 +121,7 @@ This module does **not** handle:
 - tax, insurance, or deductions
 - salaried payroll calculation
 
-Scheduling is handled in another app. StayOps only handles actual attendance records and hourly gross-pay calculation.
+Scheduling is handled in another app. Foldy only handles actual attendance records and hourly gross-pay calculation.
 
 ## Scope Summary
 
@@ -504,7 +504,7 @@ This module calculates **gross principal only**.
 worker's `/mobile/attendance/pay` screen, and as a separate base-wage / allowance / transport breakdown in
 every monthly & per-user Excel/PDF export.
 
-StayOps adds **attendance allowances** for busy days or short-staffed days. This is not a bonus or a
+Foldy adds **attendance allowances** for busy days or short-staffed days. This is not a bonus or a
 permanent hourly-rate change. It is an extra allowance applied to a specific Tokyo operating date to help
 secure staff when demand is high.
 

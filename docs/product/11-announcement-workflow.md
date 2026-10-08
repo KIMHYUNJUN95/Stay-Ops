@@ -416,7 +416,7 @@ Current implementation:
 ### Current Implementation Note
 
 `/admin/announcements` 는 위 콘솔 명세대로 **재구현 완료**되었다 (2026-07-23, Claude Design handoff
-"StayOps 공지 관리 (admin)" 1:1 포팅).
+"Foldy 공지 관리 (admin)" 1:1 포팅).
 
 구현된 구조:
 

@@ -531,7 +531,7 @@ function Frame({
           <div className="auth-brand__top">
             <span className="auth-brand__mark" aria-hidden="true" />
             <div>
-              <div className="auth-brand__wm">Stay Ops</div>
+              <div className="auth-brand__wm">Foldy</div>
               <div className="auth-brand__role">{copy.brandRole}</div>
             </div>
           </div>

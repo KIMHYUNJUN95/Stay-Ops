@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">StayOps</string>
-    <string name="title_activity_main">StayOps</string>
+    <string name="app_name">Foldy</string>
+    <string name="title_activity_main">Foldy</string>
     <string name="package_name">com.harutokyo.stayops</string>
     <string name="custom_url_scheme">com.harutokyo.stayops</string>
 </resources>

@@ -4,10 +4,10 @@ name: Recruit application sync
 # ----------------------------
 # 채용 사이트(haru-recruit / Firebase)에는 Cloud Function 이 **없다**. 저장소를 확인한 결과
 # functions/ 디렉터리도 firebase.json 의 functions 설정도 없고, 지원서는 브라우저가 Firestore 에
-# 직접 쓴다(ApplicationPage.tsx → addDoc). 즉 「지원서가 생기면 StayOps 로 밀어넣는」 주체가 아예
+# 직접 쓴다(ApplicationPage.tsx → addDoc). 즉 「지원서가 생기면 Foldy 로 밀어넣는」 주체가 아예
 # 존재하지 않는다.
 #
-# 함수를 새로 만들려면 Firebase Blaze(카드 등록)가 필요해 「무료」 조건과 충돌한다. 그래서 StayOps
+# 함수를 새로 만들려면 Firebase Blaze(카드 등록)가 필요해 「무료」 조건과 충돌한다. 그래서 Foldy
 # 가 Firestore 를 당겨온다. 이 워크플로가 그 방아쇠다.
 #
 # WHY GITHUB ACTIONS AND NOT VERCEL CRON

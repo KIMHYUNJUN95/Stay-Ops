@@ -195,7 +195,7 @@ this stage reuses the approval/reject columns already added by `202607060002_ann
 - **Toolbar refinements (2026-07-07):** summary card 1 counts requests in 건/件/cases (not 명/people);
   the sort control is a real dropdown (신청 순 / 일수 많은 순); the type & sort chip popovers drop
   straight down under their trigger (`ChipDropdown` gained `align`/`fitTrigger` props, defaults keep the
-  attendance queue's existing right-align). Branch/building filter was intentionally dropped (StayOps
+  attendance queue's existing right-align). Branch/building filter was intentionally dropped (Foldy
   has no user↔building association in the schema; confirmed not needed 2026-07-07).
 - **Pixel-fidelity pass, Phase 1 (implemented 2026-07-07):** sort now has all 4 handoff options (신청
   순/기간 임박순/일수 많은 순/이름순, client-side). Pending requests whose start date is within 5 days
@@ -306,7 +306,7 @@ No new migration was needed for these three — this reuses `annual_leave_reques
   `is_leave_approver()` only checks for a non-null value, so either grants approval today). Server-side
   guards: the current admin can't remove their own right (their row shows a 잠금 chip, `locked`), and
   the org must always keep **at least one** approver (`min_one_approver`). The **소속** column has no
-  data source — StayOps has no user↔building association (same reason the queue's branch filter was
+  data source — Foldy has no user↔building association (same reason the queue's branch filter was
   dropped 2026-07-07) — so it renders "—".
 - Management writes (`saveEmployeeLeaveBaselineAction`, `setLeaveApproverAction`) re-verify the caller
   is a leave approver server-side via `isSessionLeaveApprover` (exported from

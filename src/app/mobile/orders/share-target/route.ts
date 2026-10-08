@@ -4,7 +4,7 @@ import { sanitizeSharedUrl } from "@/lib/share-target";
 
 /**
  * Web Share Target receiver.
- * The browser POSTs here when the user picks StayOps from the native share sheet.
+ * The browser POSTs here when the user picks Foldy from the native share sheet.
  * We validate the URL, then issue a 303 redirect to the order-creation page so the
  * browser follows it with a GET (POST→GET pattern for share targets).
  */

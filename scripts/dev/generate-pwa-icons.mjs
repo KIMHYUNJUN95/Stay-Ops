@@ -3,9 +3,9 @@
  * 이 스크립트를 돌리면 옛 남색 "S" 임시 마크로 **덮어쓴다**. 앱 아이콘 · 시작 화면은 `generate-app-icons.mjs`(실제 로고 기준)를 쓴다.
  */
 /**
- * One-off: generate StayOps PWA / home-screen icons from an inline SVG (no binary asset needed).
+ * One-off: generate Foldy PWA / home-screen icons from an inline SVG (no binary asset needed).
  *
- * Brand mark: deep ink-navy gradient squircle + ivory serif italic "S" (the "Stay Ops" wordmark is
+ * Brand mark: deep ink-navy gradient squircle + ivory serif italic "S" (the "Foldy" wordmark is
  * serif italic). This is a clean placeholder mark; swap the SVG for a real logo later and re-run.
  *
  *   node scripts/dev/generate-pwa-icons.mjs

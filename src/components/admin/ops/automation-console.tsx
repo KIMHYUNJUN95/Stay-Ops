@@ -420,7 +420,7 @@ function PreviewPane({
           <div className="atm__sh">
             <div aria-hidden className="atm__av" />
             {/* 실제 Slack 에 보이는 보내는 사람 이름(Slack 앱 이름 — 고유 명사라 번역하지 않는다). */}
-            <span className="atm__sn">StayOps Automation</span>
+            <span className="atm__sn">Foldy Automation</span>
             <span className="atm__stag">{copy.preview.app}</span>
           </div>
           <div className="atm__msg">

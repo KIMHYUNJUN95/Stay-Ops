@@ -13,7 +13,7 @@ This document defines the technical design for the first Bug Report / Problem Re
 
 Important distinction:
 
-- this is for **StayOps product/system issues**
+- this is for **Foldy product/system issues**
 - it is not a maintenance/facility workflow
 - it is not the staff-suggestions feedback thread
 
@@ -185,7 +185,7 @@ getOrgBugReports(session, filters)
   -- reviewer only; all reports in org
 ```
 
-Write paths use service-role with explicit org/role checks, consistent with other StayOps workflows.
+Write paths use service-role with explicit org/role checks, consistent with other Foldy workflows.
 
 ## Notification
 

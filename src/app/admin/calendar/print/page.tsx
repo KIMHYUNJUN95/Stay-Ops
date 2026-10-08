@@ -362,7 +362,7 @@ export default async function AdminCalendarPrintPage({ searchParams }: PageProps
         <section className="admcal-print__sheet">
           <div className="admcal-print__header">
             <div>
-              <div className="admcal-print__eyebrow">StayOps</div>
+              <div className="admcal-print__eyebrow">Foldy</div>
               <h1 className="admcal-print__title">{buildMonthLabel(data.selectedMonth, data.locale)}</h1>
               <p className="admcal-print__subtitle">{copy.outOfWindowTitle}</p>
             </div>
@@ -373,7 +373,7 @@ export default async function AdminCalendarPrintPage({ searchParams }: PageProps
         <section className="admcal-print__sheet">
           <div className="admcal-print__header">
             <div>
-              <div className="admcal-print__eyebrow">StayOps</div>
+              <div className="admcal-print__eyebrow">Foldy</div>
               <h1 className="admcal-print__title">{buildMonthLabel(data.selectedMonth, data.locale)}</h1>
               <p className="admcal-print__subtitle">{copy.emptyTitle}</p>
             </div>

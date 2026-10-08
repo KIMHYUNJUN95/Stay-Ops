@@ -211,7 +211,7 @@ export function ReviewDetailPanel({
             </div>
           ) : null}
 
-          {/* OTA 답글 — Booking.com 전용, 읽기 전용. StayOps에서 답글을 작성·전송하지 않는다. */}
+          {/* OTA 답글 — Booking.com 전용, 읽기 전용. Foldy에서 답글을 작성·전송하지 않는다. */}
           {review.otaReplyText ? (
             <div className="cxreply">
               <div className="cxreply__top">

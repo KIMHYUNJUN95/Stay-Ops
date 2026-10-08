@@ -289,7 +289,7 @@ export function ReviewDetail({
         </div>
       )}
 
-      {/* Booking.com OTA 답글 — 읽기 전용. StayOps 는 답글을 작성·전송하지 않는다.
+      {/* Booking.com OTA 답글 — 읽기 전용. Foldy 는 답글을 작성·전송하지 않는다.
           번역 대상도 아니다(review_translations 에 "reply" source_part 가 없다). */}
       {review.provider === "booking" && review.otaReplyText && (
         <div className="cx-bodycard cx-replycard">

@@ -1,4 +1,4 @@
-# 룸 매핑 대조 — StayOps ↔ STAY ARI Manager
+# 룸 매핑 대조 — Foldy ↔ STAY ARI Manager
 
 > 실측: **2026-09-17** (roomId 단위 전수 비교)
 > 상위: [../product/31-stay-ari-migration-overview.md](../product/31-stay-ari-migration-overview.md)

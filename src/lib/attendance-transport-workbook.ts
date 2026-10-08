@@ -53,7 +53,7 @@ export async function buildTransportWorkbookBase64(
   labels: TransportWorkbookLabels,
 ): Promise<string> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "StayOps";
+  wb.creator = "Foldy";
   wb.created = new Date();
 
   const ws = wb.addWorksheet(labels.monthLabel.slice(0, 31), {

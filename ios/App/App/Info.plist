@@ -18,11 +18,11 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>StayOps uses the camera to scan the attendance QR code and to take photos you attach to work records such as maintenance and lost &amp; found reports.</string>
+	<string>Foldy uses the camera to scan the attendance QR code and to take photos you attach to work records such as maintenance and lost &amp; found reports.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>StayOps checks your location only at the moment you clock in or out, to confirm you are at the work site. Location is never tracked in the background.</string>
+	<string>Foldy checks your location only at the moment you clock in or out, to confirm you are at the work site. Location is never tracked in the background.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>StayOps lets you choose photos from your library to attach to work records.</string>
+	<string>Foldy lets you choose photos from your library to attach to work records.</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
@@ -30,7 +30,7 @@
 		<string>ja</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-        <string>StayOps</string>
+        <string>Foldy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

@@ -398,7 +398,7 @@ i18n `opsRevenueCompare` + `opsRevenue.tabCompare`(ko · ja · en).
 기본은 꺼 두고, 켜면 취소 예약이 흐릿하게 같이 보인다. 「이 방이 왜 비어 있지?」 →
 「어제 취소됐구나」를 알기 위한 것이다. → [33](33-calendar-write-features.md)
 
-## 기간 — StayOps 의 창을 넓혀야 한다
+## 기간 — Foldy 의 창을 넓혀야 한다
 
 > **2026-10-07 정리 — 이 구멍은 이미 닫혀 있었다.** 2026-09-16 에 6시간 정합성이 「날짜 창」에서 **「지난번 이후 바뀐 예약
 > 전부」(`modifiedFrom`, 기간 제한 없음 · 취소분 따로)** 로 바뀌었다(`01-beds24-integration.md` 「2026-09-16 정합성이 …」).
@@ -409,7 +409,7 @@ i18n `opsRevenueCompare` + `opsRevenue.tabCompare`(ko · ja · en).
 
 **이것이 이번 이전에서 데이터 쪽 가장 큰 변경이다.** 두 프로젝트가 다루는 기간이 다르다.
 
-| | STAY ARI Manager | StayOps (2026-09-28 현재) |
+| | STAY ARI Manager | Foldy (2026-09-28 현재) |
 | --- | --- | --- |
 | 예약 정합성 | **과거 6개월 ~ 미래 12개월** | ✅ **기간 제한 없음** — 바뀐 예약만(`modifiedFrom`, 2026-09-16). 3개월 창은 커서가 없을 때만 |
 | 예약 조회 상한 | 미래 **24개월** | — |
@@ -419,7 +419,7 @@ i18n `opsRevenueCompare` + `opsRevenue.tabCompare`(ko · ja · en).
 **가격은 몇 달 앞을 미리 잡는 일이다.** 다음 달 것만 보이는 캘린더로는 가격 운영을 할 수 없다.
 운영 캘린더는 **최소 12개월**을 봐야 한다.
 
-### 지금 StayOps 에 이미 있는 구멍
+### 지금 Foldy 에 이미 있는 구멍
 
 예약 웹훅은 **날짜와 무관하게** 들어온다. 그래서 3개월 창 밖의 예약도 DB 에 있다 —
 2026-09-16 기준 **223건**(가장 먼 것 2027-05-03).
@@ -488,7 +488,7 @@ i18n `opsRevenueCompare` + `opsRevenue.tabCompare`(ko · ja · en).
 
 ### 가져오지 않는 것
 
-- **예약·건물·리뷰 동기화** — StayOps 가 이미 한다. 중복으로 돌리면 Beds24 크레딧만 두 배.
+- **예약·건물·리뷰 동기화** — Foldy 가 이미 한다. 중복으로 돌리면 Beds24 크레딧만 두 배.
 - **가격 동기화 · 가격 작업 큐** — 캘린더 이식에서 이미 우리 것으로 만들었다(33번 문서).
 - 홈 요약 5분 갱신(`homeDashboardSummary`) — 외부 발송이 아니라 저쪽 홈 화면 캐시다.
 - `functions/` 루트의 일회성 스크립트 · `testNotionSync` · 주석 처리된 가동률 Notion 동기화.
@@ -526,7 +526,7 @@ Hotelsmart 수집 ──> 청소 명단 Slack ──> 재시도 ──> 정정�
 
 ### 실행 기반이 다르다
 
-| | 저쪽 | StayOps |
+| | 저쪽 | Foldy |
 | --- | --- | --- |
 | 스케줄 | Firebase Cloud Functions (`onSchedule`) | **GitHub Actions** + Vercel Cron |
 | 이유 | — | 2026-07-22 에 Vercel 크론이 며칠 발화하지 않아 예약 5일치가 조용히 비었다. 이후 새 스케줄은 외부 트리거를 쓴다 |

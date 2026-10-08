@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the first StayOps screens to create in Google Stitch.
+This document defines the first Foldy screens to create in Google Stitch.
 
 Use these as design prompts and screen requirements.
 
@@ -62,17 +62,17 @@ This section is the live design progress tracker for Stitch review. Update it wh
 - Give correction prompts only for issues that must be fixed now.
 - Minor polish that can be corrected during implementation should be marked as "development-time fix".
 - Correction prompts must be provided as one copyable block, not split into multiple prompts.
-- StayOps is the required brand name. Do not use LUMINA or any other brand name.
+- Foldy is the required brand name. Do not use LUMINA or any other brand name.
 - The visual direction is readable Apple-inspired design: warm-ivory mobile canvas/chrome, cream-white cards/sheets, selective translucent overlays, thin lines, soft shadows, deep navy accent, and strong operational readability.
 
 ### App Splash / Launch Screen Requirement
 
-- StayOps should show a simple splash/launch screen when the mobile app/PWA first opens.
+- Foldy should show a simple splash/launch screen when the mobile app/PWA first opens.
 - The splash screen should use a clean white or bright gray-white background.
 - The app logo should appear centered on the screen, similar to common app launch experiences such as Instagram or Facebook.
 - The splash should be brief and should not feel like a marketing page.
-- The final StayOps logo is not designed yet, so the launch screen is required but final visual design depends on later logo work.
-- Until the logo is finalized, designs may use a temporary StayOps wordmark or placeholder mark.
+- The final Foldy logo is not designed yet, so the launch screen is required but final visual design depends on later logo work.
+- Until the logo is finalized, designs may use a temporary Foldy wordmark or placeholder mark.
 - This requirement applies to the mobile PWA/native-style app start experience. Admin web does not need a full-screen splash by default.
 
 ## Design Direction
@@ -104,7 +104,7 @@ Roles:
 
 Required elements:
 
-- StayOps name
+- Foldy name
 - Email login
 - Google login
 - Language selection
@@ -115,7 +115,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile PWA login and signup screen for StayOps, a multilingual hotel operations app. Use an Apple-inspired Liquid Glass style with strong readability. Include email login, Google login, language selection for Korean/Japanese/English, invite code entry, and phone number field for signup. Keep the layout calm, professional, and optimized for hotel staff.
+Create a mobile PWA login and signup screen for Foldy, a multilingual hotel operations app. Use an Apple-inspired Liquid Glass style with strong readability. Include email login, Google login, language selection for Korean/Japanese/English, invite code entry, and phone number field for signup. Keep the layout calm, professional, and optimized for hotel staff.
 ```
 
 ## Screen 2: Mobile Home
@@ -140,7 +140,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile home screen for StayOps field staff. Use readable Apple-inspired Liquid Glass UI. The top area shows an active cleaning timer if running, followed by important announcements, today's check-in/check-out summary, large quick action buttons for Start Cleaning, Maintenance, Lost Item, and Order Request, and a timeline of today's activity records. Include bottom navigation with Home, Calendar, Cleaning, Requests, Announcements.
+Create a mobile home screen for Foldy field staff. Use readable Apple-inspired Liquid Glass UI. The top area shows an active cleaning timer if running, followed by important announcements, today's check-in/check-out summary, large quick action buttons for Start Cleaning, Maintenance, Lost Item, and Order Request, and a timeline of today's activity records. Include bottom navigation with Home, Calendar, Cleaning, Requests, Announcements.
 ```
 
 Current design status:
@@ -199,7 +199,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile Requests tab for StayOps. It should show all requests and my registrations, with filters for Maintenance, Lost & Found, and Orders. Use compact readable cards with property, request title, reporter, status chip, and date. Include create actions. Use Liquid Glass style but keep the list easy to scan.
+Create a mobile Requests tab for Foldy. It should show all requests and my registrations, with filters for Maintenance, Lost & Found, and Orders. Use compact readable cards with property, request title, reporter, status chip, and date. Include create actions. Use Liquid Glass style but keep the list easy to scan.
 ```
 
 Current design status:
@@ -240,7 +240,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create only mobile screens for the StayOps reservation calendar. Do not create desktop, admin web, sidebar, or PC timeline screens in this design pass. This app must support buildings with up to 26-28 rooms, so do not try to show every room reservation inside one normal monthly date grid.
+Create only mobile screens for the Foldy reservation calendar. Do not create desktop, admin web, sidebar, or PC timeline screens in this design pass. This app must support buildings with up to 26-28 rooms, so do not try to show every room reservation inside one normal monthly date grid.
 
 Create a mobile calendar with a compact property/building selector and a view switcher: Month / Rooms / Lists. Month view shows a property-level monthly overview with real multi-day reservation bars inside date cells and optional room filtering. Rooms view shows a mobile-friendly room-by-date timeline for the selected building, optimized for many rooms with vertical room rows and horizontal dates. Lists view gives operational lists: Check-in Today, Check-out Today, Staying Today, Empty Today, and Earliest Empty.
 
@@ -298,7 +298,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile announcements screen for StayOps. Show pinned and important announcements, read/unread states, announcement cards, and a detail view with content, up to five images, comments, and read confirmation. Include a popup announcement state shown on app open. Use readable Liquid Glass design.
+Create a mobile announcements screen for Foldy. Show pinned and important announcements, read/unread states, announcement cards, and a detail view with content, up to five images, comments, and read confirmation. Include a popup announcement state shown on app open. Use readable Liquid Glass design.
 ```
 
 ## Screen 7: User Directory / My Profile
@@ -322,7 +322,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a mobile user profile and directory screen for StayOps. Include a My Profile card with editable name, phone number, and language. (`age` and theme preference are not part of the current editable surface; the app is light-mode-only and dark mode is deferred post-launch.) Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
+Create a mobile user profile and directory screen for Foldy. Include a My Profile card with editable name, phone number, and language. (`age` and theme preference are not part of the current editable surface; the app is light-mode-only and dark mode is deferred post-launch.) Below, show a user directory with profile photo, name, role, phone number, and a call button. Use Apple-inspired Liquid Glass with strong readability.
 ```
 
 ## Screen 8: Admin Dashboard
@@ -351,7 +351,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create mobile-only StayOps Order Request management screens for a hotel operations PWA. Keep only the documented StayOps order request workflow. This is not a payment, shipping, delivery, receiving, or purchasing-tracking system. The purpose is for field staff to tell the office which supplies/items are needed, for which property/building, and who requested them.
+Create mobile-only Foldy Order Request management screens for a hotel operations PWA. Keep only the documented Foldy order request workflow. This is not a payment, shipping, delivery, receiving, or purchasing-tracking system. The purpose is for field staff to tell the office which supplies/items are needed, for which property/building, and who requested them.
 
 Do not include price, estimated cost, unit cost, cost center, budget, payment, shipping, delivery tracking, arrival tracking, courier, tracking number, or receiving status.
 
@@ -409,7 +409,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create a desktop admin dashboard for StayOps, a hotel operations system. Use a readable Apple-inspired Liquid Glass style for a professional operations console. Include a left sidebar with Dashboard, Calendar, Check-In/Out, Cleaning, Maintenance, Lost & Found, Orders, Announcements, Recurring Work, Users, Settings. The main dashboard shows today's check-ins/check-outs, cleaning status, open maintenance, lost items, order requests, and important announcements.
+Create a desktop admin dashboard for Foldy, a hotel operations system. Use a readable Apple-inspired Liquid Glass style for a professional operations console. Include a left sidebar with Dashboard, Calendar, Check-In/Out, Cleaning, Maintenance, Lost & Found, Orders, Announcements, Recurring Work, Users, Settings. The main dashboard shows today's check-ins/check-outs, cleaning status, open maintenance, lost items, order requests, and important announcements.
 ```
 
 ## Screen 10: Admin Cleaning Status
@@ -433,7 +433,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create an admin web cleaning status screen for StayOps. Use a dense readable operations console layout with Liquid Glass accents. Include filters for date, property, staff, and status. Show a table with property, room, staff, start time, completed time, total duration, and notes. Include Korean Excel and PDF export buttons.
+Create an admin web cleaning status screen for Foldy. Use a dense readable operations console layout with Liquid Glass accents. Include filters for date, property, staff, and status. Show a table with property, room, staff, start time, completed time, total duration, and notes. Include Korean Excel and PDF export buttons.
 ```
 
 ## Screen 11: Admin Reservation Calendar
@@ -462,7 +462,7 @@ Required elements:
 Prompt draft:
 
 ```txt
-Create an admin web Reservation Calendar for StayOps. Use a dense channel-manager-style room/date grid for hotel and Airbnb operations. Show many rooms and many dates with horizontal reservation bars spanning check-in to check-out. The grid should support buildings with 26 to 28 rooms. Include property filter, search, date range, status/channel filters, selected reservation detail inspector or collapsible drawer, and earliest available list. Do not show price, revenue, rates, payment, sales, or inventory data. Use Apple-inspired Liquid Glass with strong business-app readability.
+Create an admin web Reservation Calendar for Foldy. Use a dense channel-manager-style room/date grid for hotel and Airbnb operations. Show many rooms and many dates with horizontal reservation bars spanning check-in to check-out. The grid should support buildings with 26 to 28 rooms. Include property filter, search, date range, status/channel filters, selected reservation detail inspector or collapsible drawer, and earliest available list. Do not show price, revenue, rates, payment, sales, or inventory data. Use Apple-inspired Liquid Glass with strong business-app readability.
 ```
 
 Current design status:

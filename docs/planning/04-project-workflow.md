@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines how StayOps should be planned, designed, built, and updated.
+This document defines how Foldy should be planned, designed, built, and updated.
 
 The project should be treated like a real team project, even when work is done with AI tools.
 
@@ -193,7 +193,7 @@ When work continues in a new AI chat, the handoff prompt should include:
 5. The required verification steps after changes
 6. Any communication rules that the assistant must keep following
 
-Current StayOps handoff expectations:
+Current Foldy handoff expectations:
 
 - Reply in Korean
 - Check existing docs and code state first
@@ -232,7 +232,7 @@ No major feature should be implemented only in code without documentation.
 
 All mobile screens that use `MobileShell` must inherit the unified mobile shell contract.
 
-- Top chrome: three-line hamburger menu trigger (shorter middle line), centered `Stay Ops` wordmark, notification bell, and profile link.
+- Top chrome: three-line hamburger menu trigger (shorter middle line), centered `Foldy` wordmark, notification bell, and profile link.
 - Top chrome is scroll-aware: it hides on downward scroll and returns on upward scroll.
 - Side menu: the top-left menu trigger opens a full-screen left slide-in navigation sheet. The old 78%-width drawer pattern is retired because exposed dimmed slivers repeatedly caused iOS Safari / standalone PWA status-bar and seam artifacts.
 - Bottom navigation: the current shared contract is the solid warm-ivory bottom-attached tab bar with a raised center squircle FAB, not a floating capsule.
@@ -280,7 +280,7 @@ Do not conflate "baseline done" with "feature complete." The docs are the ground
   - lists mode (check-in/check-out/staying),
   - reservation detail bottom-sheet modal,
   - month navigation via `month=YYYY-MM` query (prev/next controls).
-- Keep the global mobile shell contract unchanged (`[three-line hamburger] Stay Ops [Notifications + Profile]`, scroll-aware top chrome, full-screen side menu, warm-ivory bottom tab bar with center FAB, shared drag-down bottom sheets).
+- Keep the global mobile shell contract unchanged (`[three-line hamburger] Foldy [Notifications + Profile]`, scroll-aware top chrome, full-screen side menu, warm-ivory bottom tab bar with center FAB, shared drag-down bottom sheets).
 ## 2026-05-27 Workflow Rule Update
 
 - Documentation-first enforcement is now explicit for all contributors:

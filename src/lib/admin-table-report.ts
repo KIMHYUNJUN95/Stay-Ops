@@ -66,7 +66,7 @@ function renderSheet(sheet: AdminTableSheet, input: AdminTableReportInput, index
 }
 
 export function buildAdminTableReportHtml(input: AdminTableReportInput): string {
-  const docTitle = input.sheets[0] ? titleText(input.sheets[0]) : "StayOps";
+  const docTitle = input.sheets[0] ? titleText(input.sheets[0]) : "Foldy";
   const sections = input.sheets.map((sheet, i) => renderSheet(sheet, input, i)).join("");
 
   return `<!DOCTYPE html>

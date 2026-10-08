@@ -34,7 +34,7 @@ const TEMP_SITE_NAME = "임시 테스트 현장";
 // Default coordinates: central Tokyo (Tokyo Tower area). Override with ?lat/?lng on first creation.
 const DEFAULT_LAT = 35.6586;
 const DEFAULT_LNG = 139.7454;
-const DEFAULT_SSID = "StayOps-Test";
+const DEFAULT_SSID = "Foldy-Test";
 
 function isLocalDevHost(host: string) {
   if (host === "localhost" || host === "127.0.0.1") return true;

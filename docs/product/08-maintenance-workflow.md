@@ -371,7 +371,7 @@ When created from an active cleaning timer, the request should automatically lin
 > `HTTP 200 image/png`. 코드로 검증되지 않았던 마지막 경로(완료 사진 storage 정책)가 닫혔다.
 
 `/admin/maintenance`가 기존 목록 카드 화면에서 **운영 콘솔**로 교체됐다. Claude Design 핸드오프
-(`StayOps 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 그대로 옮긴 것으로, 위 "설계 원칙" 절의
+(`Foldy 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 그대로 옮긴 것으로, 위 "설계 원칙" 절의
 스펙을 화면으로 구현한 결과다.
 
 ### 구성 (3뷰)

@@ -4,7 +4,7 @@
  * .side / .top / .card / .btn / .pill / .pop / .panel / .opsbar …).
  * This file only adds Todoist-specific classes; it never re-declares the
  * shared shell primitives themselves. Ported 1:1 from the Claude Design
- * handoff "StayOps 투두 (admin)/todo.css", scoped under `.adm` and
+ * handoff "Foldy 투두 (admin)/todo.css", scoped under `.adm` and
  * reconciled against admin-console.css to avoid class-name collisions
  * (renames are called out per-section below).
  * Spec: docs/product/28-admin-todoist-console.md

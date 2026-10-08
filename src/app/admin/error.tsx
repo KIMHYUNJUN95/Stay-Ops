@@ -34,7 +34,7 @@ export default function AdminError({
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background px-8 text-center text-foreground">
       <Image
-        alt="StayOps"
+        alt="Foldy"
         className="rounded-[20px]"
         height={64}
         priority

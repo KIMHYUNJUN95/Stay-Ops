@@ -2,11 +2,11 @@
 
 ## Project Name
 
-StayOps
+Foldy
 
 ## Meaning
 
-StayOps combines:
+Foldy combines:
 
 - Stay: accommodation, lodging, hotel stays
 - Ops: operations
@@ -32,11 +32,11 @@ The app should work for:
 
 The first users are the company's own office staff, on-site staff, and part-time staff.
 
-StayOps will start as an internal operations app used in real work. After the product is proven internally, the long-term goal is to consider public release for other accommodation operators.
+Foldy will start as an internal operations app used in real work. After the product is proven internally, the long-term goal is to consider public release for other accommodation operators.
 
 ## Platform Direction
 
-StayOps must include:
+Foldy must include:
 
 - Native mobile app for on-site staff and part-time staff
 - Admin web app for office/admin work
@@ -63,7 +63,7 @@ The app must therefore support both room-based and property-based operational st
 
 The company currently uses Beds24 as a channel manager and already has an internal system built with the Beds24 API.
 
-StayOps should eventually integrate with Beds24 to bring reservation, occupancy, and availability data into the app.
+Foldy should eventually integrate with Beds24 to bring reservation, occupancy, and availability data into the app.
 
 Important calendar use case:
 
@@ -88,9 +88,9 @@ Known existing technology of that separate system:
 
 Important distinction:
 
-The existing system focuses on price updates, inventory-related management, occupancy, sales, and operational automation. StayOps has a different product focus: on-site staff work, internal tasks, communication, scheduling, and field operations.
+The existing system focuses on price updates, inventory-related management, occupancy, sales, and operational automation. Foldy has a different product focus: on-site staff work, internal tasks, communication, scheduling, and field operations.
 
-StayOps does not need to follow the existing system's technical stack unless it is still the best option after independent evaluation.
+Foldy does not need to follow the existing system's technical stack unless it is still the best option after independent evaluation.
 
 ## Problem
 
@@ -114,7 +114,7 @@ This causes:
 
 ## Product Promise
 
-StayOps gives hotel teams one shared place to register, assign, track, and complete operational work.
+Foldy gives hotel teams one shared place to register, assign, track, and complete operational work.
 
 ## Initial Scope
 
@@ -151,7 +151,7 @@ salaried payroll accounting remain out of scope.
 
 Cleaning staff assignment is also not part of the first scope because the company already uses a separate system for cleaning personnel assignment.
 
-StayOps should focus on cleaning execution records:
+Foldy should focus on cleaning execution records:
 
 - Start cleaning
 - Complete cleaning

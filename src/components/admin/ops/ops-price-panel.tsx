@@ -25,7 +25,7 @@ import {
  * 가격·최소숙박 조작 패널 — **격자 오른쪽 세로 카드**.
  *
  * 도메인 계약: docs/product/33-calendar-write-features.md 「조정 방식 두 가지」
- * 시안: Claude Design 「StayOps 운영 관리자 영역」 `3-select.dc.html`
+ * 시안: Claude Design 「Foldy 운영 관리자 영역」 `3-select.dc.html`
  *
  * ## 왜 옆인가
  *

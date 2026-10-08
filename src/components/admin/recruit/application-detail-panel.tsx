@@ -7,7 +7,7 @@ import { ApplicationPrintSheet, RecruitPrintButton } from "./application-print-s
 import { RecruitContactBlock, RecruitNoteBlock, RecruitPanelActions } from "./recruit-panel-client";
 
 /**
- * 지원서 상세 패널 — 서버 컴포넌트. 디자인 「StayOps Recruiting Console」 1b·1c·1f 구현.
+ * 지원서 상세 패널 — 서버 컴포넌트. 디자인 「Foldy Recruiting Console」 1b·1c·1f 구현.
  *
  * **패널 순서는 판단에 쓰이는 순서다:** 근무 조건 → 경험·동기 → 체류 자격 → 첨부 → 기본 정보.
  * 연락처가 맨 아래인 것은 의도다 — 열어보는 이유가 「연락하려고」가 아니라 「검토하려고」이기

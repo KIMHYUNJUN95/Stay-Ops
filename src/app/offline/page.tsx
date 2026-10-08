@@ -4,7 +4,7 @@ import { OfflineAutoReload } from "@/app/offline/offline-auto-reload";
 // i18n-ignore-file: offline fallback is static and trilingual because session locale may be unavailable.
 
 export const metadata: Metadata = {
-  title: "오프라인 · StayOps",
+  title: "오프라인 · Foldy",
 };
 
 /**
@@ -21,7 +21,7 @@ export default function OfflinePage() {
           이 경로는 SW 가 프리캐시한다(`OFFLINE_ICON`). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        alt="StayOps"
+        alt="Foldy"
         className="size-16 rounded-[20px]"
         height={64}
         src="/icons/icon-192.png"

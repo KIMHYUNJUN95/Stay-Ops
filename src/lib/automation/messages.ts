@@ -495,7 +495,7 @@ export function cleaningStructureKey(model: CleaningListModel): string {
  * 취소 · 당일예약 알림 = **Slack 카드**(Block Kit — 2026-10-07 사용자 결정, 이 두 채널만).
  *
  * 폰 Slack 앱에서 제목 · 2열 칸(숙박 · 금액 · 인원 · 채널) · 작은 회색 줄 · 링크로 나뉘어 보인다. 잠금화면 알림은 카드를 못 그리므로
- * `notify`(한 줄 — 무슨 일 · 방 · 날짜 · 금액)가 뜬다. 「StayOps 에서 열기」는 버튼이 아니라 **굵은 링크 줄** — URL 버튼도 Slack 이
+ * `notify`(한 줄 — 무슨 일 · 방 · 날짜 · 금액)가 뜬다. 「Foldy 에서 열기」는 버튼이 아니라 **굵은 링크 줄** — URL 버튼도 Slack 이
  * 앱에 클릭 신호를 보내 응답을 기다리는데, 우리 Slack 앱은 그 주소(Interactivity)가 없어 경고가 뜰 수 있다.
  */
 export type AlertCard = {

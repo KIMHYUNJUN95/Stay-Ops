@@ -98,7 +98,7 @@ reservation detail sheet, and the common shell are unchanged. Ivory/navy app the
 
 ## Purpose
 
-The reservation calendar shows Beds24 reservation, occupancy, and availability information inside StayOps.
+The reservation calendar shows Beds24 reservation, occupancy, and availability information inside Foldy.
 
 It is separate from the recurring work scheduler.
 
@@ -116,11 +116,11 @@ The calendar must show:
 - Reservation source/channel
 - Whether there is an empty room/property for the selected day
 
-Price/revenue information should not be shown in StayOps MVP.
+Price/revenue information should not be shown in Foldy MVP.
 
 ## Date Range
 
-StayOps does not need to show all historical reservation data.
+Foldy does not need to show all historical reservation data.
 
 Required calendar range for MVP:
 
@@ -128,7 +128,7 @@ Required calendar range for MVP:
 Current month + next month (2 months total)
 ```
 
-Historical data from previous years is not needed in StayOps MVP.
+Historical data from previous years is not needed in Foldy MVP.
 
 ### Operational Fetch Window (implemented 2026-05-26)
 
@@ -352,7 +352,7 @@ Rooms view should support two different density modes:
    - Preferred visual direction: compact room rows on the left, date columns on top, and horizontal colored reservation bars without visible guest names.
    - This mode should feel like a mobile occupancy heat/timeline board for quick scanning.
 
-For large buildings, a mobile overview cannot show 28 rooms, many dates, and full guest names all at once. StayOps should intentionally separate overview scanning from detail reading.
+For large buildings, a mobile overview cannot show 28 rooms, many dates, and full guest names all at once. Foldy should intentionally separate overview scanning from detail reading.
 
 Implementation note (2026-05-22):
 
@@ -506,7 +506,7 @@ Notes:
 - `Min Stay` may show a small value such as 1, 2, 3, or dash when useful.
 - `Reservation` contains the multi-day reservation bars.
 - These sub-rows are optional implementation details, but the admin calendar must preserve channel-manager-level density.
-- Price/rate rows are not allowed in StayOps MVP.
+- Price/rate rows are not allowed in Foldy MVP.
 
 Right-side reservation detail:
 

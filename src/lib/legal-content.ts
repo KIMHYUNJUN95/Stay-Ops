@@ -41,12 +41,12 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
   ko: {
     title: "개인정보처리방침",
     summary:
-      "StayOps는 숙박 운영팀을 위한 업무용 서비스입니다. 업무에 필요한 최소한의 정보만 다루며, 광고나 판매 목적으로 개인정보를 쓰거나 제3자에게 팔지 않습니다.",
+      "Foldy는 숙박 운영팀을 위한 업무용 서비스입니다. 업무에 필요한 최소한의 정보만 다루며, 광고나 판매 목적으로 개인정보를 쓰거나 제3자에게 팔지 않습니다.",
     sections: [
       {
         heading: "1. 적용 범위",
         paragraphs: [
-          "이 방침은 StayOps 모바일 앱 · 웹(이하 「서비스」)에 적용됩니다. 서비스는 소속 조직(숙박 운영 사업자)의 초대를 받은 구성원이 업무 목적으로 이용합니다. 업무 기록에 대해서는 소속 조직이 관리 주체이며, StayOps 운영자는 조직을 대신해 정보를 처리합니다.",
+          "이 방침은 Foldy 모바일 앱 · 웹(이하 「서비스」)에 적용됩니다. 서비스는 소속 조직(숙박 운영 사업자)의 초대를 받은 구성원이 업무 목적으로 이용합니다. 업무 기록에 대해서는 소속 조직이 관리 주체이며, Foldy 운영자는 조직을 대신해 정보를 처리합니다.",
         ],
       },
       {
@@ -132,12 +132,12 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
   ja: {
     title: "プライバシーポリシー",
     summary:
-      "StayOpsは宿泊施設の運営チーム向けの業務用サービスです。業務に必要な最小限の情報のみを扱い、広告や販売の目的で個人情報を利用したり、第三者に販売したりすることはありません。",
+      "Foldyは宿泊施設の運営チーム向けの業務用サービスです。業務に必要な最小限の情報のみを扱い、広告や販売の目的で個人情報を利用したり、第三者に販売したりすることはありません。",
     sections: [
       {
         heading: "1. 適用範囲",
         paragraphs: [
-          "本ポリシーは、StayOpsのモバイルアプリおよびウェブ（以下「本サービス」）に適用されます。本サービスは、所属組織（宿泊施設の運営事業者）から招待を受けたメンバーが業務目的で利用します。業務記録については所属組織が管理主体となり、StayOps運営者は組織に代わって情報を取り扱います。",
+          "本ポリシーは、Foldyのモバイルアプリおよびウェブ（以下「本サービス」）に適用されます。本サービスは、所属組織（宿泊施設の運営事業者）から招待を受けたメンバーが業務目的で利用します。業務記録については所属組織が管理主体となり、Foldy運営者は組織に代わって情報を取り扱います。",
         ],
       },
       {
@@ -223,12 +223,12 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
   en: {
     title: "Privacy Policy",
     summary:
-      "StayOps is a work tool for accommodation operations teams. We handle only the information the work requires, and we never use personal data for advertising or sell it to third parties.",
+      "Foldy is a work tool for accommodation operations teams. We handle only the information the work requires, and we never use personal data for advertising or sell it to third parties.",
     sections: [
       {
         heading: "1. Scope",
         paragraphs: [
-          "This policy applies to the StayOps mobile app and web (the \"Service\"). The Service is used for work by members invited by their organization (an accommodation operator). The organization controls its work records; the StayOps operator processes information on the organization's behalf.",
+          "This policy applies to the Foldy mobile app and web (the \"Service\"). The Service is used for work by members invited by their organization (an accommodation operator). The organization controls its work records; the Foldy operator processes information on the organization's behalf.",
         ],
       },
       {
@@ -317,12 +317,12 @@ export const termsOfService: Record<Locale, LegalDocument> = {
   ko: {
     title: "이용약관",
     summary:
-      "StayOps는 숙박 운영 사업자와 그 구성원이 업무에 쓰는 서비스입니다. 이 약관은 서비스를 이용할 때 지켜야 할 기본 규칙을 정합니다.",
+      "Foldy는 숙박 운영 사업자와 그 구성원이 업무에 쓰는 서비스입니다. 이 약관은 서비스를 이용할 때 지켜야 할 기본 규칙을 정합니다.",
     sections: [
       {
         heading: "1. 서비스",
         paragraphs: [
-          "StayOps(이하 「서비스」)는 청소 · 근태 · 예약 · 수리 · 분실물 · 주문 등 숙박 운영 업무를 기록하고 처리하는 업무용 도구입니다. 소속 조직의 초대를 받은 구성원만 이용할 수 있습니다.",
+          "Foldy(이하 「서비스」)는 청소 · 근태 · 예약 · 수리 · 분실물 · 주문 등 숙박 운영 업무를 기록하고 처리하는 업무용 도구입니다. 소속 조직의 초대를 받은 구성원만 이용할 수 있습니다.",
         ],
       },
       {
@@ -387,12 +387,12 @@ export const termsOfService: Record<Locale, LegalDocument> = {
   ja: {
     title: "利用規約",
     summary:
-      "StayOpsは、宿泊施設の運営事業者とそのメンバーが業務に使うサービスです。本規約は、本サービスを利用する際に守るべき基本的なルールを定めます。",
+      "Foldyは、宿泊施設の運営事業者とそのメンバーが業務に使うサービスです。本規約は、本サービスを利用する際に守るべき基本的なルールを定めます。",
     sections: [
       {
         heading: "1. 本サービス",
         paragraphs: [
-          "StayOps（以下「本サービス」）は、清掃・勤怠・予約・修理・遺失物・注文など宿泊施設運営の業務を記録・処理するための業務用ツールです。所属組織から招待を受けたメンバーのみが利用できます。",
+          "Foldy（以下「本サービス」）は、清掃・勤怠・予約・修理・遺失物・注文など宿泊施設運営の業務を記録・処理するための業務用ツールです。所属組織から招待を受けたメンバーのみが利用できます。",
         ],
       },
       {
@@ -457,12 +457,12 @@ export const termsOfService: Record<Locale, LegalDocument> = {
   en: {
     title: "Terms of Service",
     summary:
-      "StayOps is a work service for accommodation operators and their members. These terms set the basic rules for using it.",
+      "Foldy is a work service for accommodation operators and their members. These terms set the basic rules for using it.",
     sections: [
       {
         heading: "1. The Service",
         paragraphs: [
-          "StayOps (the \"Service\") is a work tool for recording and processing accommodation operations such as cleaning, attendance, reservations, maintenance, lost & found and orders. Only members invited by their organization may use it.",
+          "Foldy (the \"Service\") is a work tool for recording and processing accommodation operations such as cleaning, attendance, reservations, maintenance, lost & found and orders. Only members invited by their organization may use it.",
         ],
       },
       {
@@ -535,12 +535,12 @@ export const accountDeletion: Record<Locale, LegalDocument> = {
   ko: {
     title: "계정 삭제 안내",
     summary:
-      "StayOps 계정과 관련 개인정보를 삭제하는 방법입니다. 앱을 이미 지웠어도 웹에서 같은 방법으로 삭제할 수 있습니다.",
+      "Foldy 계정과 관련 개인정보를 삭제하는 방법입니다. 앱을 이미 지웠어도 웹에서 같은 방법으로 삭제할 수 있습니다.",
     sections: [
       {
         heading: "1. 직접 삭제하기 (즉시 처리)",
         items: [
-          "StayOps 앱 또는 웹 브라우저에서 로그인합니다.",
+          "Foldy 앱 또는 웹 브라우저에서 로그인합니다.",
           "계정 화면 → 보안 탭으로 이동합니다.",
           "「계정 삭제」를 누르고 확인하면 바로 삭제됩니다.",
         ],
@@ -577,12 +577,12 @@ export const accountDeletion: Record<Locale, LegalDocument> = {
   ja: {
     title: "アカウント削除のご案内",
     summary:
-      "StayOpsのアカウントと関連する個人情報を削除する方法です。アプリを削除済みの場合でも、ウェブから同じ方法で削除できます。",
+      "Foldyのアカウントと関連する個人情報を削除する方法です。アプリを削除済みの場合でも、ウェブから同じ方法で削除できます。",
     sections: [
       {
         heading: "1. ご自身で削除する（即時）",
         items: [
-          "StayOpsアプリまたはウェブブラウザでログインします。",
+          "Foldyアプリまたはウェブブラウザでログインします。",
           "アカウント画面 → セキュリティタブを開きます。",
           "「アカウント削除」を押して確認すると、すぐに削除されます。",
         ],
@@ -619,12 +619,12 @@ export const accountDeletion: Record<Locale, LegalDocument> = {
   en: {
     title: "Deleting your account",
     summary:
-      "How to delete your StayOps account and the personal data tied to it. Even if you have already removed the app, you can do the same on the web.",
+      "How to delete your Foldy account and the personal data tied to it. Even if you have already removed the app, you can do the same on the web.",
     sections: [
       {
         heading: "1. Delete it yourself (immediate)",
         items: [
-          "Sign in to the StayOps app or in a web browser.",
+          "Sign in to the Foldy app or in a web browser.",
           "Go to Account → Security.",
           "Tap \"Delete account\" and confirm. The account is deleted right away.",
         ],
@@ -663,7 +663,7 @@ export const accountDeletion: Record<Locale, LegalDocument> = {
 export const supportContent: Record<Locale, SupportContent> = {
   ko: {
     title: "고객지원",
-    summary: "StayOps 이용 중 문제가 있거나 궁금한 점이 있으면 아래를 확인해 주세요.",
+    summary: "Foldy 이용 중 문제가 있거나 궁금한 점이 있으면 아래를 확인해 주세요.",
     contactHeading: "문의하기",
     contactBody:
       "업무 · 권한 관련 문의는 먼저 소속 조직 관리자에게 연락해 주세요. 앱 오류나 계정 문제는 아래 메일로 보내 주시면 확인 후 답변드립니다. 로그인한 상태라면 앱 메뉴의 「버그 신고」도 이용할 수 있습니다.",
@@ -693,7 +693,7 @@ export const supportContent: Record<Locale, SupportContent> = {
   },
   ja: {
     title: "サポート",
-    summary: "StayOpsのご利用中に問題やご不明な点がありましたら、以下をご確認ください。",
+    summary: "Foldyのご利用中に問題やご不明な点がありましたら、以下をご確認ください。",
     contactHeading: "お問い合わせ",
     contactBody:
       "業務・権限に関するお問い合わせは、まず所属組織の管理者にご連絡ください。アプリの不具合やアカウントの問題は、下記のメールアドレスまでお送りいただければ確認のうえご返信します。ログイン中であれば、アプリのメニューにある「バグ報告」もご利用いただけます。",
@@ -723,7 +723,7 @@ export const supportContent: Record<Locale, SupportContent> = {
   },
   en: {
     title: "Support",
-    summary: "If something isn't working or you have a question about StayOps, start here.",
+    summary: "If something isn't working or you have a question about Foldy, start here.",
     contactHeading: "Contact us",
     contactBody:
       "For questions about your work or permissions, contact your organization's administrator first. For app problems or account issues, email us at the address below and we'll get back to you. If you're signed in, you can also use \"Bug Report\" in the app menu.",

@@ -2,7 +2,7 @@
 
 ## Requirement
 
-StayOps must support both:
+Foldy must support both:
 
 - Standalone Airbnb-style properties
 - Hotel-style buildings with multiple rooms
@@ -117,7 +117,7 @@ For some company-managed buildings, Beds24 exposes two different room ID groups 
 Important:
 
 - This is a company internal operating rule, not a Beds24 standard rule.
-- StayOps must decide which Beds24 room IDs are active before creating or refreshing the internal room master.
+- Foldy must decide which Beds24 room IDs are active before creating or refreshing the internal room master.
 
 Selection rule:
 

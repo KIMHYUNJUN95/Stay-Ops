@@ -2,7 +2,7 @@
 
 ## Required Clients
 
-StayOps must support two clients from the beginning:
+Foldy must support two clients from the beginning:
 
 ## 1. Mobile Field App
 
@@ -67,7 +67,7 @@ Recommended principle:
 
 ## Multi-Tenant Requirement
 
-StayOps must be multi-tenant from the beginning.
+Foldy must be multi-tenant from the beginning.
 
 Each company/customer should be represented as an organization/workspace. All operational data must belong to an organization so future public release is possible without redesigning the database.
 

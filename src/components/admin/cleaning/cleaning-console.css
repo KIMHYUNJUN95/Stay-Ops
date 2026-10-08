@@ -1,6 +1,6 @@
 /*
  * Admin cleaning console — screen-local additions on top of admin-console.css.
- * Ported from the Claude Design handoff (StayOps 청소 (admin) → clean.css). Reuses existing shared
+ * Ported from the Claude Design handoff (Foldy 청소 (admin) → clean.css). Reuses existing shared
  * primitives (.card/.opsbar/.dd/.panel/.modal/.fld/.qtbl/.qsearch/.chipbtn/.kv/.pblock/.state) as-is;
  * only genuinely new components for this screen live here (KPI 6-strip, room-status cards, status
  * buckets, setup/staff summary grids, history toolbar layout, force-complete time-picker fields).

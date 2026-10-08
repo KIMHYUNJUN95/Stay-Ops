@@ -1,4 +1,4 @@
-/* StayOps service worker.
+/* Foldy service worker.
  *
  * Goals: (1) installable PWA (Android's install prompt needs a SW with a fetch handler),
  * (2) friendly offline page, (3) fast static assets, (4) **instant cold-launch** for the installed

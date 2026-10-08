@@ -4,11 +4,11 @@
 
 The company uses Beds24 as its channel manager.
 
-An internal company system already uses the Beds24 API. StayOps should connect to the same operational data source or integrate directly with Beds24, depending on the final architecture.
+An internal company system already uses the Beds24 API. Foldy should connect to the same operational data source or integrate directly with Beds24, depending on the final architecture.
 
 The current internal system is a separate web app with automation integrations across Google Sheets, Notion, Slack, and other APIs. It uses Firebase, React Native, and Node.js.
 
-StayOps can integrate with Beds24 directly or through an independent sync service. It does not need to depend on the existing internal system because the product focus is different.
+Foldy can integrate with Beds24 directly or through an independent sync service. It does not need to depend on the existing internal system because the product focus is different.
 
 ## Official API Direction
 
@@ -19,7 +19,7 @@ Important initial research notes:
 - Beds24 API V2 is the preferred direction for new integrations.
 - Beds24 API usage should be minimized and rate-limited.
 - The integration should avoid unnecessary repeated calls.
-- StayOps should cache synced data locally instead of calling Beds24 every time the app opens a calendar view.
+- Foldy should cache synced data locally instead of calling Beds24 every time the app opens a calendar view.
 
 Official references:
 
@@ -31,7 +31,7 @@ Official references:
 
 ### First Goal: Read Data
 
-StayOps should first read data from Beds24.
+Foldy should first read data from Beds24.
 
 Needed data:
 
@@ -54,7 +54,7 @@ Reservation memo/notes are not required for the MVP reservation calendar.
 ### External Reviews: Read-only Collection (spec verified 2026-08-04)
 
 Beds24가 제공하는 Airbnb 및 Booking.com 리뷰는 예약 동기화와 분리된 **저빈도 수집 작업**으로 다룬다.
-StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_reviews` 로컬 사본만 읽는다.
+Foldy UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_reviews` 로컬 사본만 읽는다.
 
 엔드포인트 계약은 Beds24 OpenAPI 스펙(`https://beds24.com/api/v2/apiV2.yaml`)에서 실측했다.
 
@@ -181,7 +181,7 @@ StayOps UI는 Beds24를 실시간 조회하지 않고, 수집한 `external_revie
 
 ## Company-Specific Active Room Rule
 
-This is not a Beds24 platform rule. It is an internal StayOps/company operating rule and must be applied when importing room data.
+This is not a Beds24 platform rule. It is an internal Foldy/company operating rule and must be applied when importing room data.
 
 Background:
 
@@ -197,7 +197,7 @@ Active vs inactive rule:
 
 Import rule:
 
-- StayOps room/property sync must ignore room IDs marked inactive by this internal rule.
+- Foldy room/property sync must ignore room IDs marked inactive by this internal rule.
 - Reservation calendar room axis, empty-room counts, and room master data should only use the active room ID set.
 - Future Beds24 sync code must keep this rule configurable/documented because it is a company-specific convention, not a Beds24 guarantee.
 
@@ -262,7 +262,7 @@ check_out_date = lastNight + 1 calendar day
 
 ### minimumStay Gap: Not Available in Booking Webhook
 
-`minimumStay` is a **room inventory setting** in Beds24. In the current StayOps implementation it can be sourced from:
+`minimumStay` is a **room inventory setting** in Beds24. In the current Foldy implementation it can be sourced from:
 
 ```txt
 GET /v2/properties?includeAllRooms=true
@@ -281,7 +281,7 @@ Verification update (2026-05-25):
 
 - Real Beds24 `properties?includeAllRooms=true` responses contain `roomTypes[].id` and `roomTypes[].minStay`.
 - Real `inventory/rooms/calendar` calls are currently returning room rows with empty `calendar: []` for the tested same-day request, so they are not yet sufficient on their own for authoritative classification.
-- StayOps now uses `properties?includeAllRooms=true` as the primary minimum-stay sync source and keeps `inventory/rooms/calendar` as a fallback for future/date-specific refinement.
+- Foldy now uses `properties?includeAllRooms=true` as the primary minimum-stay sync source and keeps `inventory/rooms/calendar` as a fallback for future/date-specific refinement.
 
 Booking room-identity correction (2026-05-26, extended 2026-06-02):
 
@@ -364,7 +364,7 @@ Beds24 inventory sync now supports two server-side auth paths:
 - `BEDS24_API_TOKEN`: direct short-lived access token
 - `BEDS24_API_REFRESH_TOKEN`: long-lived refresh token exchanged through `GET /v2/authentication/token`
 
-StayOps preference:
+Foldy preference:
 
 - local/manual verification can use a direct `BEDS24_API_TOKEN`
 - long-running environments should prefer `BEDS24_API_REFRESH_TOKEN`
@@ -378,7 +378,7 @@ StayOps preference:
   - dev-only route: `POST /api/dev/beds24/backfill-room-master`
   - source: `GET /properties?includeAllRooms=true`
   - behavior: upserts all Beds24 properties and all roomTypes into `properties`/`rooms` before reservation/webhook traffic
-  - default target: all active organizations in StayOps (optionally scope with `?organizationId=<uuid>`)
+  - default target: all active organizations in Foldy (optionally scope with `?organizationId=<uuid>`)
 - dev helper script:
   - `scripts/dev/beds24-backfill-inventory.sh`
   - example: `BEDS24_WEBHOOK_SECRET=... bash scripts/dev/beds24-backfill-inventory.sh`
@@ -435,7 +435,7 @@ These require careful permission, audit log, and error-handling design.
 
 ## Calendar Requirement
 
-StayOps needs a calendar-style schedule view similar in spirit to TimeTree.
+Foldy needs a calendar-style schedule view similar in spirit to TimeTree.
 
 The calendar should help staff answer:
 
@@ -458,7 +458,7 @@ Default stay time rules:
 
 ## Property Model Requirement
 
-StayOps must support two accommodation structures:
+Foldy must support two accommodation structures:
 
 ### Multi-Room Building
 
@@ -476,7 +476,7 @@ Example:
 
 ## Internal Data Model Direction
 
-StayOps should not directly depend on Beds24's external data shape everywhere in the app.
+Foldy should not directly depend on Beds24's external data shape everywhere in the app.
 
 Recommended approach:
 
@@ -500,7 +500,7 @@ lastSyncedAt
 Additional mapping note:
 
 - For buildings that rotate between two Beds24 room IDs, internal room master sync should store only the active room ID set for the current period.
-- The inactive room ID set (minimum stay `>= 50`) should not be surfaced as active operational rooms in StayOps.
+- The inactive room ID set (minimum stay `>= 50`) should not be surfaced as active operational rooms in Foldy.
 
 Reservation channel usage:
 
@@ -516,7 +516,7 @@ Preferred strategy:
 
 - Use Beds24 webhooks for reservation/booking change events.
 - Avoid frequent polling because it can be less real-time and may increase server/API cost.
-- Store only the reservation window needed for StayOps MVP.
+- Store only the reservation window needed for Foldy MVP.
 
 Reservation window:
 
@@ -575,19 +575,19 @@ Use these checks right after token creation/rotation:
 
 ## Open Questions
 
-- Should StayOps call Beds24 directly, or call the company's existing internal system?
+- Should Foldy call Beds24 directly, or call the company's existing internal system?
 - Which Beds24 API version is currently used by the internal system?
 - Which data fields are already stored in the internal system?
-- Is the existing Firebase project suitable for StayOps, or should StayOps use a separate Firebase project?
-- Does the existing Node.js backend already expose internal APIs that StayOps can reuse?
-- Should StayOps ignore the existing internal backend and build its own Beds24 sync pipeline?
+- Is the existing Firebase project suitable for Foldy, or should Foldy use a separate Firebase project?
+- Does the existing Node.js backend already expose internal APIs that Foldy can reuse?
+- Should Foldy ignore the existing internal backend and build its own Beds24 sync pipeline?
 - What exact Beds24 webhook events are available for the account/properties?
 - Should we run a daily reconciliation job for current month + next 2 months?
 - Do staff need offline access to calendar data?
 
 ## Reservation Visibility Rule
 
-StayOps calendar should show only confirmed/valid reservations.
+Foldy calendar should show only confirmed/valid reservations.
 
 Cancelled reservations should be removed from the visible calendar and should not count as occupied.
 - Which roles can see price/revenue information imported from Beds24?
@@ -607,7 +607,7 @@ Cancelled reservations should be removed from the visible calendar and should no
   - `organization_id`
   - `source`
   - `source_reservation_id`
-- For multi-room support, StayOps now stores a **room-assignment reservation key** in `source_reservation_id`:
+- For multi-room support, Foldy now stores a **room-assignment reservation key** in `source_reservation_id`:
   - `"{originalReservationId}::room::{room_label}"`
 - UI surfaces must display the original reservation ID from raw payload (or the de-suffixed value), not the storage key.
 - Beds24 channel strings can vary by casing/alias (`booking`, `Booking.com`, `API`, `airbnb`).
@@ -665,7 +665,7 @@ Quick fault isolation (webhook vs backfill):
 - Operational examples:
   - one guest occupies two or more rooms
   - the same reservation is shown on two room lines in the Beds24 room board
-- StayOps must mirror this instead of collapsing the later room row over the earlier one.
+- Foldy must mirror this instead of collapsing the later room row over the earlier one.
 - Reservation persistence is therefore room-assignment based:
   - one reservation ID may now be stored multiple times when `room_label` differs
   - webhook and backfill both derive a storage key per room assignment and save it into `source_reservation_id`
@@ -696,7 +696,7 @@ Quick fault isolation (webhook vs backfill):
 
 ### Webhook-only operational freshness update (2026-05-26)
 
-- StayOps now treats Beds24 booking webhooks as the primary production freshness path for reservation calendar updates.
+- Foldy now treats Beds24 booking webhooks as the primary production freshness path for reservation calendar updates.
 - Reservation backfill remains available only as a manual/dev recovery tool, not as the normal operational source of freshness.
 - Mobile calendar now subscribes to Supabase Realtime changes on `public.reservations` for the current organization and triggers a client `router.refresh()` when webhook-written rows change.
 - To make this work in every environment, `public.reservations` must be present in the `supabase_realtime` publication.
@@ -728,7 +728,7 @@ Quick fault isolation (webhook vs backfill):
 
 - Beds24 webhook/API ingestion is temporarily paused while the external webhook connection is
   intentionally disconnected.
-- StayOps now short-circuits the production webhook and reconcile endpoints when
+- Foldy now short-circuits the production webhook and reconcile endpoints when
   `BEDS24_SYNC_PAUSED` is enabled.
 - Existing reservation rows remain readable in the reservation calendar. The pause only affects new
   ingestion / reconciliation.
@@ -880,7 +880,7 @@ last_change_timestamp`. 있는 건 예약번호뿐이다.
 
 ### 한 건물만 가져오고 싶었다
 
-Beds24 에 새로 연 건물 **343112** 가 StayOps 에는 숫자 그대로 보였다 — `properties` 에 이름이
+Beds24 에 새로 연 건물 **343112** 가 Foldy 에는 숫자 그대로 보였다 — `properties` 에 이름이
 없어 `property_name` 이 외부 ID 로 떨어진 상태였다. 다른 건물은 멀쩡하므로 **이 건물만** 채워야
 했는데, 방 마스터 백필은 「전 건물·전 객실」 뿐이라 다른 건물까지 같이 흔든다.
 

@@ -1,4 +1,4 @@
-/* StayOps — dev-only service worker kill switch.
+/* Foldy — dev-only service worker kill switch.
  *
  * `next dev` 에서는 `/sw.js` 요청이 이 파일로 rewrite 된다(`next.config.ts`).
  * 같은 origin(localhost:3000)에서 예전에 `npm start` 로 프로덕션 SW 를 설치했다면, 그 SW 가

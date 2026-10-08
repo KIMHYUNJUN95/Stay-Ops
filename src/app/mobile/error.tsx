@@ -39,7 +39,7 @@ export default function MobileError({
           브랜드로 읽히게 한다. 예전엔 여기에 그라데이션 박스 + 이탤릭 "S" 를 직접 그렸는데, 그건
           제품 로고가 아니라 이 파일에서만 쓰던 임시 마크였다(2026-08-04). */}
       <Image
-        alt="StayOps"
+        alt="Foldy"
         className="rounded-[20px]"
         height={64}
         priority

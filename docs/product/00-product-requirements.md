@@ -2,11 +2,11 @@
 
 ## Overview
 
-StayOps is a native hotel operations app for multilingual teams.
+Foldy is a native hotel operations app for multilingual teams.
 
 The app should help teams register, assign, track, and complete operational tasks that happen inside hotels and accommodation properties.
 
-StayOps must support two primary clients:
+Foldy must support two primary clients:
 
 - Mobile app for field/on-site work
 - Admin web app for office/admin work
@@ -130,7 +130,7 @@ Staff and part-time staff can send structured feedback to one required recipient
 
 ### Bug Reports / Problem Reports
 
-Staff can report problems found while using StayOps itself, such as broken flows, incorrect data,
+Staff can report problems found while using Foldy itself, such as broken flows, incorrect data,
 permission errors, or notification issues. This module is separate from Maintenance (real-world
 property issues) and separate from Staff Suggestions (person-directed feedback). The first planned
 slice is a **very simple** private reporter-to-reviewer workflow: title, description, optional
@@ -194,7 +194,7 @@ Calendar view should help staff understand:
 
 ### Beds24 Reservation Data
 
-StayOps should integrate with Beds24 to sync reservation and availability data.
+Foldy should integrate with Beds24 to sync reservation and availability data.
 
 The first integration goal is read-focused:
 

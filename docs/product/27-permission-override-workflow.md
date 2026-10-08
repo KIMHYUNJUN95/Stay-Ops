@@ -56,7 +56,7 @@ removes it immediately.
 
 ## Problem
 
-StayOps' role model (`docs/product/01-user-roles.md`, `docs/engineering/05-rls-permissions.md`) is a
+Foldy' role model (`docs/product/01-user-roles.md`, `docs/engineering/05-rls-permissions.md`) is a
 seven-role org model (`owner / senior_managing_director / office_admin / cs_staff / field_manager /
 staff / part_time_staff` — `senior_managing_director`/전무 added 2026-07-13, fully owner-equivalent)
 plus a handful of **per-feature membership flags** that already exist
@@ -107,7 +107,7 @@ every time a new exception need comes up.
 - **Who can grant**: `owner`, `senior_managing_director`(전무, owner-equivalent since 2026-07-13), and
   `developer_super_admin` only (matches the "개발자, 최고관리자" scope given in conversation).
   `office_admin` cannot grant overrides, unlike role changes where it has partial authority.
-- **Adoption is a two-layer change, not just RLS (corrected 2026-07-09).** A lot of StayOps'
+- **Adoption is a two-layer change, not just RLS (corrected 2026-07-09).** A lot of Foldy'
   real authorization logic lives in **TypeScript, not pure RLS** — e.g. `ORDER_PROCESSOR_ROLES`
   (`src/app/mobile/requests/orders/actions.ts`), `canGenerateDailyReport()` /
   `canAssignRole()` / `canAccessAdminWeb()` (`src/config/roles.ts`,
@@ -123,7 +123,7 @@ every time a new exception need comes up.
 
 ## Explicitly deferred (not MVP)
 
-- Break-glass / emergency self-service elevation — not needed at StayOps' current scale.
+- Break-glass / emergency self-service elevation — not needed at Foldy' current scale.
 - Periodic access recertification (quarterly review nagging admins to re-confirm active grants) — a
   reasonable v2 addition once there are enough live grants for it to matter.
 - A general-purpose policy engine (Zanzibar/OPA-style) — overkill for this org/table count.

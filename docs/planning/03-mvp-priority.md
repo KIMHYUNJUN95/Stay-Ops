@@ -83,15 +83,15 @@ Important features:
 > defined hourly gross-pay workflow is now implemented. Taxes/deductions and salaried payroll remain
 > out of scope. The text below is retained only as historical context.
 
-~~This is not part of StayOps first scope because the company already uses another app for attendance.~~
+~~This is not part of Foldy first scope because the company already uses another app for attendance.~~
 
 ### Cleaning Staff Assignment
 
-This is not part of StayOps first scope because the company already uses another system for cleaning personnel assignment.
+This is not part of Foldy first scope because the company already uses another system for cleaning personnel assignment.
 
 ### Full Inventory Management
 
-This is not part of StayOps first MVP because detailed inventory requirements are not decided yet.
+This is not part of Foldy first MVP because detailed inventory requirements are not decided yet.
 
 ## Mobile Home Screen Implication
 

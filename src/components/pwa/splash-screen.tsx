@@ -79,7 +79,7 @@ export function SplashScreen() {
             animation: "splash-pop 520ms cubic-bezier(0.22, 1, 0.36, 1) both",
           }}
         >
-          Stay Ops
+          Foldy
         </span>
       </div>
     </div>

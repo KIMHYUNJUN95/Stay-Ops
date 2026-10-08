@@ -2,7 +2,7 @@
 
 ## Requirement
 
-StayOps must be usable on both iPhone and Android even before public App Store / Google Play release.
+Foldy must be usable on both iPhone and Android even before public App Store / Google Play release.
 
 The product may start as an internal company app before public launch.
 
@@ -212,7 +212,7 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 
 - 앱은 배포된 웹(`server.url`)을 띄우므로, 그 주소를 못 불러오면 원래는 **WebView 기본 오류 화면**(「웹페이지를 사용할 수 없음」)이 떴다.
   `capacitor.config.ts` 에 `server.errorPath: "index.html"` 을 넣어 `capacitor-www/index.html` 이 대신 열린다.
-- 화면: 아이콘 + 「인터넷에 연결되어 있지 않아요」(기기 오프라인) 또는 「StayOps 에 연결할 수 없어요」(온라인인데 서버 실패) + 다시 시도.
+- 화면: 아이콘 + 「인터넷에 연결되어 있지 않아요」(기기 오프라인) 또는 「Foldy 에 연결할 수 없어요」(온라인인데 서버 실패) + 다시 시도.
   연결이 돌아오면(`online` 이벤트) 자동으로 한 번 다시 시도한다. 다시 시도 = 앱 첫 화면(`APP_URL`)으로 이동.
 - 정적 파일이라 `i18n.ts` 를 못 쓴다 → 파일 안 `COPY` 에 ko/ja/en 을 두고 기기 언어로 하나만 보여 준다(없으면 영어).
 - **`APP_URL` 은 `capacitor.config.ts` 의 기본 `serverUrl` 과 같아야 한다** — 자체 도메인 교체(C1) 때 두 곳을 같이 고친다.

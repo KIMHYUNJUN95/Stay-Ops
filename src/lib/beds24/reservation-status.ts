@@ -72,7 +72,7 @@ function normalizeBeds24StatusValue(raw: unknown): ReservationStatus {
 const ACTIVE_EXPLICIT_STATUSES = new Set(["confirmed", "new", "request", "inquiry", "black", "1", "2", "3", "4", "5"]);
 
 /**
- * Maps Beds24 booking/webhook payload fields to StayOps reservation status.
+ * Maps Beds24 booking/webhook payload fields to Foldy reservation status.
  * Note: Beds24 API v2 may expose statusCode: 0 on active bookings — do not use statusCode alone.
  *
  * **명시적 상태가 살아 있으면 그것을 따른다** (2026-10-07). Beds24 는 취소했다가 되살린 예약에도

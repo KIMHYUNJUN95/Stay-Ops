@@ -2,7 +2,7 @@
 
 ## Role Model
 
-StayOps should use role-based permissions from the beginning.
+Foldy should use role-based permissions from the beginning.
 
 Roles are split into:
 
@@ -20,7 +20,7 @@ Implementation note:
 
 ### Developer / Super Admin
 
-Used by the developer/operator of StayOps.
+Used by the developer/operator of Foldy.
 
 Can:
 

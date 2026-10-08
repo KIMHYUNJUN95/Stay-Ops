@@ -1,4 +1,4 @@
-// Bug Report (StayOps product issue report) — server-only domain helpers.
+// Bug Report (Foldy product issue report) — server-only domain helpers.
 //
 // Reads use the RLS-scoped server client (RLS is the first defense line). Writes use the service
 // role client AFTER an explicit code-level org + role gate, mirroring the pattern in

@@ -16,7 +16,7 @@
 >   스토리지/RLS 변경 없음. 업데이트 로그 사진은 5장 그대로.
 >
 > ✅ **DB 마이그레이션 적용 완료 (2026-06-15):** `supabase/migrations/202606150002_projects.sql` 을 연결된 Supabase
-> 프로젝트(StayOps)에 적용함 — `projects` / `project_participants` / `project_sections` 테이블 + `tasks.project_id·section_id`
+> 프로젝트(Foldy)에 적용함 — `projects` / `project_participants` / `project_sections` 테이블 + `tasks.project_id·section_id`
 > + RLS + `project_shared` enum 값 생성 확인.
 >
 > 관련 파일:
@@ -33,7 +33,7 @@
 
 ## 개요
 
-프로젝트 기능은 StayOps Todo/Task 워크스페이스에 추가되는 협업 도구다.  
+프로젝트 기능은 Foldy Todo/Task 워크스페이스에 추가되는 협업 도구다.  
 일반 할 일(Today/Tomorrow/Inbox)과 달리, 프로젝트에 속한 작업은 **프로젝트 탭 안에서만** 노출된다.  
 섹션을 만들어 작업을 묶을 수 있고, Owner가 멤버를 초대해 함께 관리한다.
 
@@ -332,7 +332,7 @@ completed.filter_project    // "프로젝트 작업" / "Projects" / "プロジ�
 | 2026-06-15 | 최초 기획 문서 작성 (구현 전 기획 단계) |
 | 2026-06-15 | 승인된 디자인 5개 화면을 정적 UI로 이식 (placeholder 데이터). 데이터 레이어·동작은 보류 |
 | 2026-06-15 | 첫 슬라이스 기능 구현 완료 — 마이그레이션·RLS·쿼리·서버액션·UI 실데이터 연동, lint·build 통과 |
-| 2026-06-15 | 마이그레이션을 연결된 Supabase(StayOps)에 적용 완료 — 테이블·RLS·enum 생성 확인 |
+| 2026-06-15 | 마이그레이션을 연결된 Supabase(Foldy)에 적용 완료 — 테이블·RLS·enum 생성 확인 |
 | 2026-06-15 | 2차: 프로젝트 작업 객실(컨텍스트) 연결(전체 생성 폼 경유) + 섹션 드래그 정렬 추가. 생성 시트 디자인 원본 HTML과 대조 수정. 새 마이그레이션 불필요. lint·build 통과 |
 | 2026-06-15 | 상세 모달 버그 수정: 확인/이름변경/멤버 모달을 `createPortal(body)`로 변경(상단·하단바 덮도록), `<form>` 감싼 삭제 버튼 폭 정상화(form `flex-1` + 버튼 `w-full`) |
 | 2026-06-15 | 생성·멤버 바텀 시트에 공통 드래그-투-디스미스(`useSheetDragDismiss`) 적용, 멤버 시트는 슬라이드 인/아웃으로 승격. 시트 상단 X 닫기 버튼 제거(드래그/스크림/Esc로 대체). lint·build 통과 |

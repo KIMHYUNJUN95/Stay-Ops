@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Google Stitch will be used to create wireframes, screen layouts, and visual directions for StayOps.
+Google Stitch will be used to create wireframes, screen layouts, and visual directions for Foldy.
 
 The implementation workflow should make it easy to compare Stitch designs with actual PWA/admin web screens.
 
@@ -54,7 +54,7 @@ Send:
 Important:
 
 - Generated code should be treated as reference.
-- Production code should follow the actual StayOps stack and architecture.
+- Production code should follow the actual Foldy stack and architecture.
 
 ## 4. Prompt + Result
 

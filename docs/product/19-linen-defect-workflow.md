@@ -31,7 +31,7 @@ This is needed because:
 - the linen vendor visits around four times per week
 - defective items are sometimes mixed into incoming linen
 - replacement may fail or be delayed on the vendor side
-- the office later needs to compare StayOps records against delivery slips
+- the office later needs to compare Foldy records against delivery slips
 - the team also wants to review monthly return volume by building and by item
 
 ## Working Definition

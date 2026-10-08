@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the initial Supabase Row Level Security direction for StayOps.
+This document defines the initial Supabase Row Level Security direction for Foldy.
 
 RLS policies must protect organization data and enforce key permission rules.
 
@@ -1022,7 +1022,7 @@ Update/delete:
 
 ## bug_reports
 
-**1차 구현 (2026-06-25).** StayOps 앱/시스템 버그 신고 테이블. Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요). 모든 쓰기는 **서비스롤 서버 액션** 경유; RLS 는 코드 게이트와 이중으로 적용.
+**1차 구현 (2026-06-25).** Foldy 앱/시스템 버그 신고 테이블. Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요). 모든 쓰기는 **서비스롤 서버 액션** 경유; RLS 는 코드 게이트와 이중으로 적용.
 
 ### 리뷰어 정의 (1차 확정)
 

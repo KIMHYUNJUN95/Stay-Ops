@@ -34,15 +34,19 @@
 > **로고를 완전히 다른 로고로, 앱 이름도 새로 바꾼다.** 새 이름 · 로고가 정해지면 아래를 한 번에 바꾼다. 그 전까지 아이콘 · 이름은 임시다.
 >
 > **2026-10-09 로고 확정 · 교체 완료** — 「접힌 리넨」(라벤더 바탕 + 보라 막대 세 겹). 앱 · PWA · 시작 화면 · 스토어 이미지 전부 새 로고.
-> 시안은 디자인 캔버스(https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h)에 보관. **앱 이름은 아직** — 아래 「앱 표시 이름」 이하 그대로 남음.
+> 시안은 디자인 캔버스(https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h)에 보관.
+>
+> **2026-10-09 앱 이름 확정 · 교체 완료 — 「Foldy」**(옛 이름 StayOps). 화면 · 앱 표시 이름 · 법적 문서 · 문서 전부. 내부 식별자(쿠키 · 저장소 키 ·
+> 앱 ID · 패키지명 · 배포 주소)는 그대로 — 아래 표 · 결정 로그 2026-10-09.
 
 | 항목 | 바꿀 곳 | 비고 |
 | --- | --- | --- |
 | ~~새 로고 받기~~ ✅ 2026-10-09 | 벡터로 정의(`generate-app-icons.mjs` `BG` · `MARK` → `public/brand/logo.svg` · `logo-mark.svg`). 적응형은 배경(라벤더) / 그림(막대) 분리 | 앱 · 시작 화면 · 스토어 · PWA `public/icons` · `favicon.ico` · `public/splash` 일괄 재생성 완료 |
-| 앱 표시 이름 | `capacitor.config.ts` `appName` · Android `strings.xml` `app_name`/`title_activity_main` · iOS `CFBundleDisplayName` · PWA `manifest*.webmanifest` | 홈 화면 아이콘 아래 이름. 스토어 등록 전까지 자유롭게 바꿀 수 있다 |
-| 화면 문구 | `src/lib/i18n.ts`(ko/ja/en, 「StayOps」 36곳) · 웹 시작 화면 · 헤더 워드마크(「Stay Ops」) · `src/` 기타 53개 파일 | 3개 언어 함께 |
-| 법적 문서 · 스토어 문구 | `src/lib/legal-content.ts`(24곳) · `18-store-review-kit.md` · 지원 페이지 · iOS 권한 문구(`*.lproj/InfoPlist.strings`) | 방침 · 약관의 서비스 이름 |
-| **앱 ID / 번들 ID** (`com.harutokyo.stayops`) | `capacitor.config.ts` `appId` · Android 패키지 · iOS 번들 · 앱 스킴 `com.harutokyo.stayops://` · **Supabase Redirect URLs** | **스토어 등록(C4) 후에는 못 바꾼다.** 새 이름에 맞출지 C4 전에 결정 (👤). 회사 도메인 기준이라 그대로 둬도 무방 |
+| ~~앱 표시 이름~~ ✅ 2026-10-09 | `capacitor.config.ts` `appName` · Android `strings.xml` `app_name`/`title_activity_main` · iOS `CFBundleDisplayName` · PWA `manifest*.webmanifest` | 홈 화면 아이콘 아래 이름. 스토어 등록 전까지 자유롭게 바꿀 수 있다 |
+| ~~화면 문구~~ ✅ 2026-10-09 | `src/lib/i18n.ts`(ko/ja/en 36곳) · 웹 시작 화면 · 헤더 워드마크(「Foldy」) · `src/` 기타 파일 | 3개 언어 함께 교체 완료 |
+| ~~법적 문서 · 스토어 문구~~ ✅ 2026-10-09 | `src/lib/legal-content.ts`(24곳) · `18-store-review-kit.md` · 지원 페이지 · iOS 권한 문구(`*.lproj/InfoPlist.strings`) | 방침 · 약관의 서비스 이름 |
+| **앱 ID / 번들 ID** (`com.harutokyo.stayops`) | `capacitor.config.ts` `appId` · Android 패키지 · iOS 번들 · 앱 스킴 `com.harutokyo.stayops://` · **Supabase Redirect URLs** | **스토어 등록(C4) 후에는 못 바꾼다.** 새 이름에 맞출지 C4 전에 결정 (👤). 회사 도메인 기준이라 그대로 둬도 무방. **2026-10-09 이름 교체 때는 그대로 둠(미결)** |
+| 바깥 서비스의 이름 (👤) | Slack 앱 「StayOps Automation」 · Google OAuth 동의 화면 앱 이름 · Supabase 인증 메일 템플릿 · Vercel 프로젝트/주소 `stay-ops-two` · GitHub 저장소 | 코드 밖이라 각 콘솔에서 바꾼다. 도메인은 C1(자체 도메인) 때 |
 
 ## 0단계 — 계정 · 도메인 (오래 걸리므로 지금 시작)
 
@@ -102,7 +106,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | --- | --- | --- | --- |
 | N1 | 상태바(시계 · 배터리 줄)가 화면에 따라 **검정** / 아이보리로 바뀜 | 항상 앱 배경색(아이보리) + 어두운 아이콘 | [x] 2026-10-08 `windowBackground` 아이보리 + `SystemBars` LIGHT(Android 설정 · iOS 브리지) — 에뮬레이터 재확인 |
 | N2 | 위치 권한이 **웹 팝업**(「stay-ops-two.vercel.app wants to use your device's location」 Block / Allow)으로 뜸 — 주소가 드러남 | 앱 이름으로 묻는 **OS 권한 팝업** 한 번만 | [x] 2026-10-08 앱에서는 `@capacitor/geolocation` 으로 읽음 — 에뮬레이터 재확인 |
-| N3 | 출퇴근 스캔에서 카메라 권한 팝업을 확인하지 못함 · 미리보기 검정 | OS 카메라 권한 팝업 → 미리보기 표시(에뮬레이터 카메라 설정도 확인) | [x] 2026-10-08 「Allow StayOps to take pictures…」 OS 팝업 확인(사용자). 미리보기는 허용 후 확인 |
+| N3 | 출퇴근 스캔에서 카메라 권한 팝업을 확인하지 못함 · 미리보기 검정 | OS 카메라 권한 팝업 → 미리보기 표시(에뮬레이터 카메라 설정도 확인) | [x] 2026-10-08 「Allow Foldy to take pictures…」 OS 팝업 확인(사용자). 미리보기는 허용 후 확인 |
 | N4 | 화면 왼쪽 가운데에 **웹용 뒤로가기 동그라미(‹)** 가 뜸 | 앱에서는 OS 뒤로 제스처 · 버튼만(웹 오버레이 숨김) | [x] 확인 결과 **Android 시스템 뒤로 제스처 화살표**였다(웹 오버레이 아님) — 수정 없음 |
 | N5 | 외부 링크(룸 링크 → Airbnb)가 앱 안 브라우저로 열림 — 동작 정상 | 툴바 색을 앱 색에 맞추기(사소) | [ ] |
 | N6 | 아이폰에서 비행기 모드 → **영어 화면만 나오고 아무것도 안 눌림**(사용자 보고, 홈 화면 PWA 로 보임) | 기기 언어로 안내 + 다시 시도 · 자동 복귀. 앱은 `errorPath` 화면(D2)으로 확인 | [ ] 재현 필요 |
@@ -176,3 +180,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-08 | (이 커밋) | N12 화면 스와이프 뒤로가기 — 웹 엔진 · 충돌 정리 · 뒤로 전환 방향 |
 | 2026-10-09 | (이 커밋) | N12 아이폰 홈 화면 앱 「반응 없음」 진단 — 세 손가락 탭 진단 표시(빌드 · 받음/안 받음 이유) |
 | 2026-10-09 | (이 커밋) | 브랜드 로고 교체 — 「접힌 리넨」(앱 · PWA · 시작 화면 · 스토어 이미지 · favicon), 벡터 원본 `public/brand/logo.svg` |
+| 2026-10-09 | (이 커밋) | 앱 이름 StayOps → Foldy — 화면 문구(ko/ja/en) · 앱 표시 이름 · 법적 문서 · 권한 문구 · 문서 전부 |

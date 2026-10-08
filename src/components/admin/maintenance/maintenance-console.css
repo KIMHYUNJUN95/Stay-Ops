@@ -1,6 +1,6 @@
 /*
  * Admin 수리·점검 console — screen-local additions on top of admin-console.css.
- * Ported 1:1 from the Claude Design handoff (StayOps 수리 점검 (admin) → maint.css).
+ * Ported 1:1 from the Claude Design handoff (Foldy 수리 점검 (admin) → maint.css).
  * Reuses the shared primitives as-is (.card/.opsbar/.dd/.calpop/.panel/.modal/.fld/.qtbl/.qsearch/
  * .cviewbar/.lviews/.syncchip/.ctoolbar/.cstat/.rptile/.hmeta/.kv/.pblock/.state) — only genuinely
  * new components for this screen live here: the 3-column status board, priority badge, category chip,

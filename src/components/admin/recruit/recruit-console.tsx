@@ -23,7 +23,7 @@ import { filterApplicationsBySearch } from "@/lib/recruit/search";
 import { nextStatusOf, type JobApplicationStatus } from "@/lib/recruit/status";
 
 /**
- * 채용 지원서 목록 — 디자인 「StayOps Recruiting Console」 1a·1d·1f 구현.
+ * 채용 지원서 목록 — 디자인 「Foldy Recruiting Console」 1a·1d·1f 구현.
  *
  * **표이고 카드가 아니다.** 하루 10건이 몰릴 때 필요한 건 비교와 훑기이고, 카드 그리드는 같은
  * 항목을 눈으로 정렬하기 어렵다. 표가 못 담는 판단 근거(경험·재지원·비자 만료·첨부 없음)는

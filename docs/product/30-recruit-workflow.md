@@ -1,6 +1,6 @@
 # Recruit — 지원서 수신과 채용 워크플로
 
-외부 채용 사이트에 들어온 지원서를 StayOps 로 받아 **읽고 분류하는** 흐름.
+외부 채용 사이트에 들어온 지원서를 Foldy 로 받아 **읽고 분류하는** 흐름.
 
 - 상태: **자동 연동 동작 중** — 2026-09-09. 수신 + 콘솔 + 실시간 갱신 + 당겨오기(pull) 완료.
   사용자 설정 작업 없음(§2-1). 남은 것은 §9 「아직 열려 있는 것」.
@@ -15,7 +15,7 @@
 ## 1. 왜 연동하는가
 
 채용 사이트(**haru-recruit** / stayari.web.app)는 Firebase 위에 따로 서 있다. 지원서는 거기 쌓이고,
-입사 후의 모든 운영은 StayOps 에서 일어난다. 그 사이가 끊겨 있어 **합격자를 다시 손으로 옮겨
+입사 후의 모든 운영은 Foldy 에서 일어난다. 그 사이가 끊겨 있어 **합격자를 다시 손으로 옮겨
 적어야** 했고, 채용 당시의 이력서·지원 동기는 입사와 동시에 사라졌다.
 
 연동의 목적은 두 가지다.
@@ -25,16 +25,16 @@
 
 **채용 확정 자체는 콘솔에서 하지 않는다**(2026-09-09 결정, §6 참고).
 
-## 2. 역할 분담 — 접수는 채용 사이트, 심사는 StayOps
+## 2. 역할 분담 — 접수는 채용 사이트, 심사는 Foldy
 
 겹치지 않는다. 채용 사이트 어드민의 `status` 는 문서 생성 시 `"대기 중"` 으로 박히는 **표시용**
-값이고 심사 워크플로가 없다(`AdminPage.tsx`). 그래서 상태 관리를 StayOps 가 가져와도 기존 화면이
+값이고 심사 워크플로가 없다(`AdminPage.tsx`). 그래서 상태 관리를 Foldy 가 가져와도 기존 화면이
 하던 일을 빼앗지 않는다.
 
 ```txt
 [haru-recruit]  지원 폼 → Firestore applications/{docId}   (브라우저가 직접 쓴다)
 
-[StayOps]       주기 동기화가 Firestore 를 읽어 job_applications 에 보관
+[Foldy]       주기 동기화가 Firestore 를 읽어 job_applications 에 보관
                 → /admin/recruit 에서 읽고 분류
                 (채용 확정은 전화·면접으로 오프라인)
 ```
@@ -54,10 +54,10 @@
 - Slack 알림도 Cloud Function 이 아니라 브라우저 `fetch` 다(`src/utils/slack.ts`).
 
 즉 **밀어넣을 주체가 존재하지 않았다.** 새로 만들려면 Firebase Cloud Functions 이고, 그건 **Blaze
-요금제(카드 등록)** 를 요구해 「무료」 조건과 충돌한다. 그래서 방향을 뒤집었다 — StayOps 가 Firestore
+요금제(카드 등록)** 를 요구해 「무료」 조건과 충돌한다. 그래서 방향을 뒤집었다 — Foldy 가 Firestore
 를 **당겨온다**(§2-1).
 
-**브라우저에서 StayOps 로 직접 보내지 않는다.** 공유 시크릿이 번들에 노출되고(클라이언트 번들은
+**브라우저에서 Foldy 로 직접 보내지 않는다.** 공유 시크릿이 번들에 노출되고(클라이언트 번들은
 전부 공개), 시크릿을 빼면 공개 수신구가 된다. 수신 경로는 `resumeUrl` 을 서버가 내려받으므로
 **임의 URL 을 밀어넣을 수 있는 입구를 열면 SSRF** 가 된다.
 
@@ -202,7 +202,7 @@ URL 에서 되살린다(`fileNameFromStorageUrl`). 화면에 「resume」 대신
 | `screening` | 서류 검토 |
 | `interview` | 면접 |
 
-채용 사이트의 한국어 문자열을 그대로 쓰지 않는다. StayOps 는 `ko`/`ja`/`en` 을 함께 지원하므로
+채용 사이트의 한국어 문자열을 그대로 쓰지 않는다. Foldy 는 `ko`/`ja`/`en` 을 함께 지원하므로
 상태는 코드값이어야 하고, 표시 문구는 i18n 이 만든다.
 
 ### 합격·불합격은 없다 (2026-09-09 사용자 결정)
@@ -251,7 +251,7 @@ RLS 정책도 역할 배열이 아니라 `has_capability(org, uid, 'job_applicat
 
 ### 지운 지원서는 되살아나지 않는다 (2026-09-10)
 
-**채용 사이트에서는 지워지지 않는다.** StayOps 는 Firestore 를 **읽기만** 한다 — 원본은 채용
+**채용 사이트에서는 지워지지 않는다.** Foldy 는 Firestore 를 **읽기만** 한다 — 원본은 채용
 사이트가 가져야 하고, 쓰기 권한도 없다.
 
 그래서 그냥 두면 **하루 1회 전량 훑기**(04:20 JST)가 그 문서를 다시 읽어 넣었다. 이력서 파일까지
@@ -260,7 +260,7 @@ RLS 정책도 역할 배열이 아니라 `has_capability(org, uid, 'job_applicat
 오히려 알아채기 어려운 형태였다.
 
 `job_application_deletions` 가 지운 `(조직, 컬렉션, 문서ID)` 를 기억하고, 수신 경로가 **그 표를
-먼저 본다.** 「지웠다」는 StayOps 쪽 정보다 — Firestore 에는 그 개념이 없다.
+먼저 본다.** 「지웠다」는 Foldy 쪽 정보다 — Firestore 에는 그 개념이 없다.
 
 - 수신이 `ingestJobApplication` 하나로 모여 있어 **전량 훑기 · 백필 · 재전송 · 나중에 붙일 Cloud
   Function 이 모두 함께** 막힌다.
@@ -277,12 +277,12 @@ RLS 정책도 역할 배열이 아니라 `has_capability(org, uid, 'job_applicat
 **자동 삭제 없음** (사용자 결정, 2026-09-09). 불합격자 지원서도 보관 기간에 따른 자동 정리를 두지
 않고 관리자가 직접 지운다. 자동 정리를 넣게 되면 이 결정부터 다시 확인할 것.
 
-삭제는 StayOps 의 기본 정책대로 하드 삭제다. 지원서를 지울 때 `recruit-resumes` 의 파일도 함께
+삭제는 Foldy 의 기본 정책대로 하드 삭제다. 지원서를 지울 때 `recruit-resumes` 의 파일도 함께
 지워야 한다(콘솔 구현 시).
 
 ## 8-1. 콘솔 `/admin/recruit` (2026-09-09 구현)
 
-디자인 「StayOps Recruiting Console」을 그대로 옮겼다. 브리프:
+디자인 「Foldy Recruiting Console」을 그대로 옮겼다. 브리프:
 `docs/design/03-recruit-console-design-brief.md`.
 
 ### 목록 — 표 + 신호 칩
@@ -366,7 +366,7 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
 ### 디자인과 다르게 간 것
 
 - **「이력서 요청 메시지」·「파일 직접 올리기」는 만들지 않았다.** 지원자에게 메시지를 보내는 경로가
-  StayOps 에 아직 없다(알림은 개발 막바지 일괄 구현). 없는 기능의 버튼을 두면 눌러 보고 나서야
+  Foldy 에 아직 없다(알림은 개발 막바지 일괄 구현). 없는 기능의 버튼을 두면 눌러 보고 나서야
   안 된다는 걸 알게 된다.
 - **PDF 패널 내 미리보기 대신 새 탭으로 연다.** 이력서는 비공개 버킷의 서명 URL 이고, 콘솔에는
   아직 뷰어 프리미티브가 없다. 여기서 새로 만들면 모바일과 두 벌이 된다.
@@ -435,7 +435,7 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
 
 **전환은 무중단으로 했다.**
 
-1. StayOps 가 서비스 계정으로도 읽을 수 있게 만든다(`firestore-auth.ts`). 자격증명이 없으면
+1. Foldy 가 서비스 계정으로도 읽을 수 있게 만든다(`firestore-auth.ts`). 자격증명이 없으면
    예전처럼 인증 없이 읽으므로 **배포만으로는 아무것도 바뀌지 않는다.**
 2. Vercel 에 `RECRUIT_FIRESTORE_SERVICE_ACCOUNT` 를 넣고 재배포 → 동기화 응답의 `auth` 가
    `service_account` 로 바뀌는 것을 확인.
@@ -443,9 +443,9 @@ Excel·PDF 를 공용 `<AdminExportButtons>` + `buildAdminTable*` 로 낸다(CLA
    `chat_rooms` 는 건드리지 않았다(채팅은 이번 변경 대상이 아니다).
 
 **적용 후 실측(2026-09-11).** 인증 없는 `applications`·`applicants` 읽기 **403**(이전 200),
-StayOps 전량 훑기 **196건 정상**(`auth: service_account`).
+Foldy 전량 훑기 **196건 정상**(`auth: service_account`).
 
-**바뀐 기능은 하나다 — 채용 사이트 어드민의 지원서 목록이 더 이상 안 뜬다.** 그 일은 StayOps
+**바뀐 기능은 하나다 — 채용 사이트 어드민의 지원서 목록이 더 이상 안 뜬다.** 그 일은 Foldy
 콘솔이 이미 더 잘한다(심사 상태·검토 메모·재지원 이력·내보내기·권한 제어). 지원 폼 제출은
 그대로이고(쓰기 허용) 채팅도 그대로다.
 
@@ -470,11 +470,11 @@ StayOps 전량 훑기 **196건 정상**(`auth: service_account`).
 API 키도 번들에 들어 있다.
 
 백필이 끝났으므로 **규칙을 잠글 수 있다**: `applications`/`applicants` 는 `create` 만 허용하고
-`read` 는 전면 차단. 지원 폼은 그대로 동작하고, 목록 열람은 StayOps 콘솔(2단계)이 대신한다.
+`read` 는 전면 차단. 지원 폼은 그대로 동작하고, 목록 열람은 Foldy 콘솔(2단계)이 대신한다.
 
 그 밖에:
 
-- **Slack 웹훅 URL 이 `functions/index.js` 에 하드코딩**되어 있다. StayOps 시크릿을 추가하는 김에
+- **Slack 웹훅 URL 이 `functions/index.js` 에 하드코딩**되어 있다. Foldy 시크릿을 추가하는 김에
   함께 환경변수로 옮기는 것을 권한다.
 - 과거 배포가 Node 18 폐지로 실패한 로그가 있다(`deploy_output.txt`). `engines` 는 node 22 로
   올라가 있으나, 함수를 수정하면 재배포가 필요하므로 배포가 실제로 되는지 먼저 확인할 것.
@@ -536,7 +536,7 @@ React 가 `row.id` 로 키를 잡으므로 검색어를 좁혀도 남아 있는 
 
 ## 지원서 인쇄 — A4 한 장 (2026-09-24)
 
-예전 채용 사이트 관리자 포털에 있던 기능을 StayOps 로 되살렸다. **면접장에 종이 지원서를 들고
+예전 채용 사이트 관리자 포털에 있던 기능을 Foldy 로 되살렸다. **면접장에 종이 지원서를 들고
 들어가는 업무가 실제로 있다.** 화면을 그대로 인쇄하면 패널 스크롤·버튼·사이드바가 섞여 나오므로,
 인쇄 전용 A4 시트를 따로 둔다.
 
@@ -591,11 +591,11 @@ React 가 `row.id` 로 키를 잡으므로 검색어를 좁혀도 남아 있는 
 `printedAt` · `printSectionJob` · `labelGender` · `labelMotivation` ·
 `labelAppliedPosition` · `labelIndustryTasks`), 전부 ko/ja/en.
 
-## 채용 사이트 어드민 폐지 — 관리는 전부 StayOps (2026-09-24 실행 완료)
+## 채용 사이트 어드민 폐지 — 관리는 전부 Foldy (2026-09-24 실행 완료)
 
 **결정.** 채용 사이트(`KIMHYUNJUN95/haru-job-web`)의 관리자 포털을 **통째로 없앤다.** 지원서 탭과
 실시간 문의 탭 둘 다다. 채용 사이트는 **지원자용으로만** 남는다 — 공고를 보고 지원 폼을 내는 것까지.
-관리 행위는 전부 StayOps `/admin/recruit` 에서 한다.
+관리 행위는 전부 Foldy `/admin/recruit` 에서 한다.
 
 ### 왜
 
@@ -609,7 +609,7 @@ React 가 `row.id` 로 키를 잡으므로 검색어를 좁혀도 남아 있는 
 ### 실시간 문의(채팅)도 함께 없앤다
 
 `chat_rooms` 는 2026-09-11 잠금에서 일부러 제외했었다(채팅은 그때 대상이 아니었다). 이번 결정으로
-**기능 자체를 폐지**한다 — StayOps 로 이관하지 않는다.
+**기능 자체를 폐지**한다 — Foldy 로 이관하지 않는다.
 
 **폐지 전에 처리했다:**
 
@@ -643,7 +643,7 @@ React 가 `row.id` 로 키를 잡으므로 검색어를 좁혀도 남아 있는 
 
 ### 범위 밖(이 저장소 아님)
 
-작업 대상 코드는 **다른 저장소**에 있다. StayOps 쪽은 바뀌는 것이 없다 — 동기화는 Firestore 를
+작업 대상 코드는 **다른 저장소**에 있다. Foldy 쪽은 바뀌는 것이 없다 — 동기화는 Firestore 를
 서비스 계정으로 읽으므로 사이트의 어드민 화면 유무와 무관하다.
 
 Firestore 규칙은 `applications`/`applicants` 의 `create` 허용을 **유지**해야 한다. 지원 폼이 그것으로
@@ -666,7 +666,7 @@ Firestore 규칙은 `applications`/`applicants` 의 `create` 허용을 **유지*
 | `siteStats` | **403** | 건드리지 않음 — 아래 참고 |
 
 **클라이언트가 만지는 컬렉션은 소스에서 전수 확인했다**(`applications` 쓰기, `siteStats` 읽기·증가).
-그 둘뿐이므로 나머지는 기본 차단으로 덮어도 사이트가 깨지지 않는다. StayOps 동기화는 서비스 계정
+그 둘뿐이므로 나머지는 기본 차단으로 덮어도 사이트가 깨지지 않는다. Foldy 동기화는 서비스 계정
 (IAM)이라 규칙을 우회하므로 영향이 없다.
 
 ### 곁다리 발견 — 방문자 카운터는 이미 죽어 있다

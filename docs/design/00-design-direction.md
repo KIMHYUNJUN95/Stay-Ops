@@ -2,7 +2,7 @@
 
 ## Current Status
 
-The main StayOps visual direction is confirmed.
+The main Foldy visual direction is confirmed.
 
 Current design status:
 
@@ -15,12 +15,12 @@ Current design status:
 
 ## App Splash / Launch Screen
 
-StayOps should include a short app launch experience for the mobile app/PWA.
+Foldy should include a short app launch experience for the mobile app/PWA.
 
 Direction:
 
 - White or bright gray-white background.
-- StayOps app logo centered on the screen.
+- Foldy app logo centered on the screen.
 - Very brief display when the app starts, similar to familiar consumer app launch screens.
 - Calm, clean, and not decorative.
 - No marketing copy.
@@ -29,13 +29,13 @@ Current status:
 
 - Required for app polish.
 - Final logo is not designed yet.
-- Use a temporary `Stay Ops` wordmark or placeholder mark until the official logo is created.
-- The interim wordmark renders as `Stay Ops` (with a space) in a serif italic typeface (Noto Serif, weight 600). It is shared across all shells/entry screens via the `.wordmark` class in `src/app/globals.css` (font loaded in `src/app/layout.tsx` as `--font-wordmark`). Applied in the mobile shell header + side menu, admin shell, dev entry, and the login/onboarding headers (`dictionary.app.name`).
+- Use a temporary `Foldy` wordmark or placeholder mark until the official logo is created.
+- The interim wordmark renders as `Foldy` (with a space) in a serif italic typeface (Noto Serif, weight 600). It is shared across all shells/entry screens via the `.wordmark` class in `src/app/globals.css` (font loaded in `src/app/layout.tsx` as `--font-wordmark`). Applied in the mobile shell header + side menu, admin shell, dev entry, and the login/onboarding headers (`dictionary.app.name`).
 - The mobile top chrome is flat and borderless: no capsule outline/ring/glass/shadow — the centered wordmark sits between the 38px menu control and the notification/profile control group over the shared warm-ivory chrome.
 
 ## Product Feeling
 
-StayOps should feel:
+Foldy should feel:
 
 - Fast
 - Clear
@@ -138,7 +138,7 @@ Confirmed direction:
 - Warm-ivory operational base, deep navy accent, and selective Apple-inspired Liquid Glass surfaces
 - Light mode only for the MVP/internal rollout (dark mode deferred until post-launch — see "Light and Dark Mode" below)
 
-Important interpretation for StayOps:
+Important interpretation for Foldy:
 
 - Use subtle translucency, blur, depth, and layered surfaces only where they add clarity or polish.
 - Do not make the whole mobile app glass. Keep the global shell/background solid and calm.
@@ -294,7 +294,7 @@ Required consistency checkpoints for every mobile page update:
 
 **Status (2026-06-08): Light mode only. Dark mode is deferred until after the official launch.**
 
-For the MVP and internal rollout StayOps ships light-mode-only. All dark-mode code, styling, theme state, and the theme-toggle UI have been removed (see `docs/planning/06-current-status.md` → "Dark mode removed"). The previous System/Light/Dark theme preference no longer exists.
+For the MVP and internal rollout Foldy ships light-mode-only. All dark-mode code, styling, theme state, and the theme-toggle UI have been removed (see `docs/planning/06-current-status.md` → "Dark mode removed"). The previous System/Light/Dark theme preference no longer exists.
 
 Implementation notes (current):
 

@@ -20,7 +20,7 @@ export default async function MobileNotFound() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center bg-background px-8 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-center text-foreground">
       <Image
-        alt="Stay Ops"
+        alt="Foldy"
         className="rounded-[22px] shadow-[0_22px_50px_-26px_hsl(223_46%_32%/0.55)]"
         height={84}
         priority

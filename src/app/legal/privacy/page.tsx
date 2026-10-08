@@ -10,7 +10,7 @@ type PageProps = { searchParams: Promise<{ lang?: string }> };
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const locale = await resolvePublicLocale((await searchParams).lang);
-  return { title: `${privacyPolicy[locale].title} · StayOps` };
+  return { title: `${privacyPolicy[locale].title} · Foldy` };
 }
 
 export default async function Page({ searchParams }: PageProps) {

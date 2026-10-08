@@ -231,7 +231,7 @@ returned: 반환완료 / 返却済み / Returned
 > `disposal_scheduled`, 만료 → `disposed` + 자동 처리 메모)와 `public.lostfound_auto_purge()`(`disposed`
 > & 폐기일+90일 경과 → 하드 삭제, `status='disposed'` 가드)는 도쿄 자정 근처(UTC `15:05`/`15:15`)에 매일
 > 실행되도록 `cron.schedule`로 등록됐다 — 마이그레이션
-> `supabase/migrations/202607180001_lostfound_console.sql`. **✅ 원격 Supabase(StayOps)에 적용 완료
+> `supabase/migrations/202607180001_lostfound_console.sql`. **✅ 원격 Supabase(Foldy)에 적용 완료
 > (2026-07-16, MCP).** pg_cron(1.6.4) 확장 활성화 + 컬럼 5개·enum 2종·함수 2종·cron 잡 2개(active) 검증
 > 완료. 이 자동 삭제(90일 보관 후 purge)는 CLAUDE.md의 "user-triggered hard delete" 기본값에 대한
 > **명시적으로 승인된 예외**다(사용자 승인, 2026-07-16). 수동 삭제는 여전히 즉시 하드 삭제로 남는다.

@@ -92,7 +92,7 @@ Every UI label, button, status, validation message, empty state, popup, and noti
 - Korean is the fallback/default locale when no user preference is available.
 - Authenticated app UI should use `profiles.preferred_language`.
 - Navigation labels, role labels, login, onboarding, mobile shell, admin shell, and the development entry screen should read from the dictionary.
-- Brand names such as `StayOps` may remain literal unless a future branding decision changes them.
+- Brand names such as `Foldy` may remain literal unless a future branding decision changes them.
 - Feature modules must add all new visible strings to the dictionary in Korean, Japanese, and English before shipping.
 
 ## Date, Time, and Number Format

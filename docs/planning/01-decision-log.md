@@ -2,6 +2,19 @@
 
 This file records important project decisions.
 
+## 2026-10-09 앱 이름 StayOps → 「Foldy」 (사용자 확정)
+
+- 사용자: 이름 후보(13번 로고와 어울리는 이름 10) 중 「8번(Foldy)으로 하자」 → 「로고랑 이름 폴디 전부 싹 다 하나도 빠짐없이 수정」.
+  fold + -y — 개어 쌓은 리넨 로고와 짝. 읽기: 폴디 · フォルディ · Foldy.
+- **바꾼 것(사람에게 보이는 이름 전부)**: 화면 문구 ko/ja/en(`i18n.ts`) · 워드마크 「Stay Ops」 → 「Foldy」(모바일 · 사이드바 · 관리자 · 로그인 ·
+  시작 화면) · 페이지 제목 · PWA `manifest*.webmanifest`(「Foldy」 · 「Foldy Admin」) · 앱 표시 이름(`capacitor.config.ts` `appName` · Android
+  `strings.xml` · iOS `CFBundleDisplayName`) · iOS 권한 문구 · 연결 실패 화면 · 법적 문서(`legal-content.ts`) · 지원 페이지 · 엑셀/PDF 작성자 ·
+  Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · `docs/` 전부. 비밀번호 금지 조각에 `foldy` 추가.
+- **그대로 둔 것(내부 식별자 — 바꾸면 기존 사용자가 로그아웃 · 설정 초기화되거나 바깥 연동이 끊긴다)**: 쿠키 `stayops_*` · 저장소 키
+  `stayops:*` · 칸 프레임 `stayops-pane` · 서비스 워커 캐시 이름 · `package.json` 이름 · 앱 ID/번들/스킴 `com.harutokyo.stayops`(스토어 등록 전
+  결정 — 17번) · 배포 주소 `stay-ops-two.vercel.app` · 심사관 계정 이메일 · 이미 적용된 마이그레이션 주석.
+- 바깥 서비스 이름(Slack 앱 · Google OAuth 동의 화면 · Supabase 메일 템플릿 · Vercel · GitHub)은 각 콘솔에서 사람이 바꾼다 — 17번 「브랜드 교체」 표.
+
 ## 2026-10-09 앱 로고 교체 — 「접힌 리넨」 (시안 20종 중 13번, 사용자 확정)
 
 - 사용자: 「13번 로고로 하고 싶어」 → 「프로젝트에 로고 들어가는 곳 전부 이걸로 바꿔줘」. 라벤더 `#EFE7FF` 바탕 위 보라 3톤
@@ -10,7 +23,7 @@ This file records important project decisions.
   출력 `public/brand/logo.svg`)라 모든 크기가 선명하다. 바꾼 곳 · 방법: `docs/engineering/03-deployment-strategy.md` 「아이콘 · 스플래시」.
 - **시안 40여 종(로고 20 · 이름 후보)은 디자인 캔버스에 그대로 보관한다**(사용자: 「언젠가 또 바뀔지도 모르니까」) —
   https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h
-- 앱 이름 교체는 별도(아래 17번 「브랜드 교체 예정」). 후보 「Foldy」 등은 캔버스에 있다.
+- 앱 이름은 같은 날 「Foldy」로 확정 — 바로 위 항목.
 
 ## 2026-10-08 모바일 뒤로가기 — 화면 어디서든 스와이프 (2026-09-11 「직접 구현 안 함」 뒤집음)
 
@@ -77,7 +90,7 @@ This file records important project decisions.
 - 상세: `docs/product/36-automation-control.md` 「표시 형식」 · 「예약 바로가기 링크」.
 - (같은 날 추가) 공용 달력 빈칸 클래스는 `is-blank` — 일반 이름(`empty`)은 콘솔 공용 클래스와 겹친다(05번).
 
-## 2026-10-06 자동화 관제실 — Slack 자동화를 StayOps 로, 저쪽 프로젝트 정지
+## 2026-10-06 자동화 관제실 — Slack 자동화를 Foldy 로, 저쪽 프로젝트 정지
 
 - **순서(사용자)**: 이식은 자동화(Slack)부터. 저쪽(STAY ARI Manager) 프로젝트는 같은 날 **전부 정지**(Slack · Beds24 API · Hotelsmart 수집 ·
   시트 · Notion · 전표 스냅샷). Firestore 데이터는 이관이 끝날 때까지 지우지 않는다.
@@ -134,7 +147,7 @@ iOS 앱은 Apple Business Manager Custom App 또는 Unlisted App 으로 **비공
 ## 2026-10-01 STAY ARI Manager 이식은 「저쪽 구조·설계를 읽고 → 업그레이드해서 → 짓는다」
 
 이식하는 모든 기능은 저쪽 원본(`/mnt/c/-stay-ari-manager-main`)의 구조 · 데이터 흐름 · 규칙을 먼저 끝까지 읽고,
-StayOps 계약(모바일 · 다국어 · 조직 격리 · 서버 권한 · 실시간)에 맞춰 개선해서 다시 짓는다. 그대로 복사하거나
+Foldy 계약(모바일 · 다국어 · 조직 격리 · 서버 권한 · 실시간)에 맞춰 개선해서 다시 짓는다. 그대로 복사하거나
 추측으로 만들지 않는다. 숫자는 기본 「저쪽 그대로」, 바꾸면 이유를 적고 확인받는다. 원본과 같은 기간으로 대조해
 검증한다. 상세: `docs/product/31-stay-ari-migration-overview.md` 「이식 원칙」.
 
@@ -233,9 +246,9 @@ broadcast 만)로, 보내기는 서버 service role 만 한다(브라우저 INSE
 동작 → 배포만으로는 아무것도 안 바뀐다) → ② 키를 넣고 `auth: service_account` 확인 → ③ 규칙 잠금.
 ②를 건너뛰고 ③을 하면 지원서 수신이 멈춘다.
 
-**실측.** 인증 없는 읽기 403(이전 200), StayOps 196건 정상.
+**실측.** 인증 없는 읽기 403(이전 200), Foldy 196건 정상.
 
-**바뀐 기능 하나 — 채용 사이트 어드민의 지원서 목록이 죽는다.** StayOps 콘솔이 이미 그 일을 더
+**바뀐 기능 하나 — 채용 사이트 어드민의 지원서 목록이 죽는다.** Foldy 콘솔이 이미 그 일을 더
 잘하므로 받아들였다(사용자 확인). 지원 폼 제출과 채팅은 그대로다.
 
 **새 운영 의존성.** 서비스 계정 키가 없거나 깨지면 동기화가 멈춘다. 전환 중에 「키를 넣었는데 왜
@@ -415,7 +428,7 @@ Status: 2단계 완료, 3단계(관리 UI) 대기 (2026-09-10).
 - 성공 이력이 없을 때(첫 실행)만 최신 50건을 통째로 본다.
 
 **함께 검토하고 기각한 것 — 즉시 반영(웹훅).** Cloud Function 은 Blaze(카드) 필요. 카드 없이 즉시
-반영하는 안(브라우저가 지원서 **내용이 아니라 docId 만** 알리고 StayOps 가 Firestore 에서 직접
+반영하는 안(브라우저가 지원서 **내용이 아니라 docId 만** 알리고 Foldy 가 Firestore 에서 직접
 읽는 방식)도 성립하지만 기각했다: ① 실제 이득은 「5~15분 → 즉시」인데 콘솔을 여는 순간은 이미
 최신이라(열 때 1회 동기화) 화면을 켜둔 채 방치할 때만 차이가 난다 ② 브라우저 알림은 탭을 닫거나
 광고차단기·방화벽에 막히면 사라지므로 **폴링을 안전망으로 남겨야 해 경로가 둘이 된다** ③ 채용
@@ -438,7 +451,7 @@ Status: Confirmed (2026-09-10). 실기 검증: 새 지원서 없을 때 `read: 0
 즉 밀어넣을 주체가 애초에 없었다. 만들려면 Firebase Cloud Functions 인데 **Blaze 요금제(카드
 등록)** 가 필요해, 사용자가 명시한 「무료로」와 충돌한다.
 
-**결정(사용자 선택).** 방향을 뒤집어 StayOps 가 Firestore 를 **당겨온다**.
+**결정(사용자 선택).** 방향을 뒤집어 Foldy 가 Firestore 를 **당겨온다**.
 
 - `POST /api/recruit/sync` + GitHub Actions(5분 주기 + 하루 1회 전량). 변환은
   `ingestJobApplication` — 웹훅·백필과 **같은 코드**다.
@@ -451,7 +464,7 @@ Status: Confirmed (2026-09-10). 실기 검증: 새 지원서 없을 때 `read: 0
 - **읽기 실패는 502.** Firestore 규칙을 잠그면 이 경로는 죽는데, 조용히 0건을 돌려주면 아무도
   모른다. 502 여야 Actions 가 빨간불이 되고 메일이 간다.
 
-**브라우저에서 StayOps 로 직접 보내는 안은 기각했다.** 시크릿이 번들에 노출되고, 빼면 공개
+**브라우저에서 Foldy 로 직접 보내는 안은 기각했다.** 시크릿이 번들에 노출되고, 빼면 공개
 수신구가 된다. 수신 경로가 `resumeUrl` 을 서버에서 내려받으므로 임의 URL 입구는 곧 SSRF 다.
 
 **남은 노출(미해결, 이 저장소 밖).** Firestore 가 여전히 공개 읽기다 — 잠그는 것이 맞지만 잠그면
@@ -1187,7 +1200,7 @@ null 로, `scheduled_date` 를 `2026-08-20` 으로 되돌리면 된다.
 - 전송 대상은 조직별 선택 UI가 없는 **단일 회사 업무일지 채널**이다. `SLACK_DAILY_REPORT_WEBHOOK_URL`
   서버 환경변수의 Incoming Webhook만 사용하며, URL은 브라우저·소스·문서·감사 로그에 저장하거나 노출하지 않는다.
 - 전송자 Slack 계정 매칭은 만들지 않는다. 기존 보고서 본문의 담당자 줄이 실제 작성자를 나타내며, Slack
-  메시지는 StayOps 웹훅/앱 명의로 전송된다.
+  메시지는 Foldy 웹훅/앱 명의로 전송된다.
 - 권한은 기존 업무일지 생성 권한과 동일하다. 버튼 노출과 별개로 서버가 생성 권한·Tokyo 날짜·비어 있지 않은
   보고서를 다시 확인한다. Slack이 수락한 성공 전송만 `audit_logs.task_daily_report_slack_sent`에
   작성자·날짜·문자 수를 남기며 본문은 남기지 않는다.
@@ -1340,7 +1353,7 @@ iOS 전용 대책이 아니다. 안드로이드·PWA 사용자도 세션이 만�
 - **수집 단위·주기: 룸타입/건물 단위 하루 2회.** "채널별 하루 1회 = 조직당 최대 2회"는 API가 단위
   파라미터를 필수로 요구해 성립하지 않아 폐기했다. 1주기 호출 수는 `(Airbnb 룸타입 수) + (Booking 건물 수)`
   + 페이지네이션이다.
-- **초기 90일 제한은 Booking.com만 서버 측(`from`)에서 가능**하고, Airbnb는 전량을 받아 StayOps에서
+- **초기 90일 제한은 Booking.com만 서버 측(`from`)에서 가능**하고, Airbnb는 전량을 받아 Foldy에서
   잘라낸다.
 - **위험도는 `unrated` / `normal` / `risk` 3값.** Airbnb ≤3, Booking.com ≤7.0이 `risk`이며 **경계값 포함**.
   이전 초안의 Booking `critical`(<7.0)과 Airbnb 1~2점 분리안은 폐기했다. Airbnb `overall_rating`이 정수라
@@ -2426,7 +2439,7 @@ Impact:
 - `src/components/attendance/leave-home.tsx`, `leave-exception.tsx`
 - `docs/engineering/04-data-model.md`, `05-rls-permissions.md`, `docs/product/26-annual-leave-workflow.md`
 
-**Migration applied 2026-07-06** to the linked StayOps Supabase project (`sspdgzkytkpmquqsfaup`) via
+**Migration applied 2026-07-06** to the linked Foldy Supabase project (`sspdgzkytkpmquqsfaup`) via
 the Supabase MCP `apply_migration`. Verified `profiles.hire_date` exists and
 `annual_leave_baselines_self_or_admin_select` RLS policy is in place; `get_advisors` showed no new
 security issues introduced by this migration.
@@ -2713,7 +2726,7 @@ Impact:
   세로 고정)는 그대로 두고, 관리자 전용 매니페스트(`public/manifest-admin.webmanifest`,
   `id "/admin"`, `scope "/admin"`, `start_url "/admin"`, orientation 미지정=any)를 신설했다.
 - `src/app/admin/layout.tsx`에서 `metadata.manifest`를 관리자 매니페스트로 오버라이드해
-  `/admin/*` 페이지에서 설치하면 "StayOps Admin"(id `/admin`)이 모바일 "StayOps"(id `/`)와
+  `/admin/*` 페이지에서 설치하면 "Foldy Admin"(id `/admin`)이 모바일 "Foldy"(id `/`)와
   별개의 앱으로 등록된다. 서비스워커(`public/sw.js`, scope `/`)는 두 표면이 공유한다.
 - 아이콘/스플래시는 **1차로 기존 모바일 아이콘 세트(`/icons/*`)를 재사용**한다. 두 앱을 나란히
   설치했을 때 시각적 구분이 필요해지면 관리자 전용 아이콘을 후속으로 제작한다.
@@ -2916,10 +2929,10 @@ dashboard aggregation. A generic "request with up to 5 images" model does not fi
 
 ### Bug Report / Problem Report — 기획 방향 확정
 
-Decision: 버그신고 기능은 **StayOps 앱 자체의 문제/버그 신고** 용도로 정의한다. 현장 운영 문제나 건물/객실 이슈를 다루는 요청 기능이 아니다.
+Decision: 버그신고 기능은 **Foldy 앱 자체의 문제/버그 신고** 용도로 정의한다. 현장 운영 문제나 건물/객실 이슈를 다루는 요청 기능이 아니다.
 
 확정 사항:
-- **성격**: StayOps 사용 중 발견한 앱/시스템 문제 신고
+- **성격**: Foldy 사용 중 발견한 앱/시스템 문제 신고
 - **대상 예시**: 화면 오작동, 버튼 무반응, 잘못된 데이터 표시, 권한 오류, 알림 오류, 심한 성능 문제
 - **비대상**: 건물/객실 문제, 청소 품질 이슈, 비품 요청, 일반 건의/의견
 - **1차 신고 폼**: `제목` + `설명` + `사진 첨부(선택)`만 받는 최소형
@@ -2927,7 +2940,7 @@ Decision: 버그신고 기능은 **StayOps 앱 자체의 문제/버그 신고** 
 - **분리 기준**:
   - `Maintenance` = 현실 시설/현장 문제
   - `Staff Suggestions` = 사람 대상 피드백/의견
-  - `Bug Report` = StayOps 제품 문제
+  - `Bug Report` = Foldy 제품 문제
 - **디자인 작업**: 사용자가 직접 진행 후 핸드오프
 
 Why: 사용자가 명확히 "앱에 대한 문제나 버그를 신고하는 곳"이라고 범위를 확정했다. 이 구분이 없으면 Maintenance/제안함과 기능 목적이 섞인다. 또한 1차는 최대한 심플해야 하므로 신고 입력 항목을 최소화한다.
@@ -3020,7 +3033,7 @@ Why: internal rollout testing now uses real user accounts and invite-code onboar
 one-click test login on the public login surface created confusion and could hide real-auth defects.
 
 Impact:
-- The bottom "테스트 로그인 (Stay Ops E2E Admin)" block no longer renders.
+- The bottom "테스트 로그인 (Foldy E2E Admin)" block no longer renders.
 - Seed test accounts are no longer auto-created or signed in by an app route.
 - Local maintenance-only dev endpoints keep a separate `ENABLE_LOCAL_DEV_TOOLS` gate; that gate is
   not an authentication shortcut.
@@ -3134,7 +3147,7 @@ targets the following auth model:
 - Support **Google login/signup** and **standard email + password signup/login**
 - Remove **email magic-link** from the product plan
 - Treat Google as an **authentication method only**
-- Do **not** import Google profile name/phone into StayOps operational profile fields
+- Do **not** import Google profile name/phone into Foldy operational profile fields
 
 Required onboarding fields after authentication:
 
@@ -3147,7 +3160,7 @@ Required onboarding fields after authentication:
 Rules:
 
 - Authentication alone does not grant app access
-- Users without a valid team invite code cannot use any StayOps features
+- Users without a valid team invite code cannot use any Foldy features
 - Incomplete users must always return to onboarding
 - Email signup requires email verification
 - Password reset uses reset-email flow
@@ -3156,7 +3169,7 @@ Rules:
 
 Identity rules:
 
-- The same email address maps to a single StayOps account
+- The same email address maps to a single Foldy account
 - Google and email/password should attach to the same account when the email matches
 - Phone number is account-level unique
 - If signup is retried on an incomplete account, resume onboarding instead of creating a duplicate account
@@ -3235,7 +3248,7 @@ Status: Implemented in onboarding + schema/docs sync
 
 ### Project Name
 
-Decision: Use `StayOps` as the working project name.
+Decision: Use `Foldy` as the working project name.
 
 Reason:
 
@@ -3279,7 +3292,7 @@ phone number, preferred language, and team invite code.
 
 Decision: Social login may prefill email, name, and profile photo when available, but users must confirm or enter missing required fields. Prefilled profile information should be editable.
 
-Status: **Superseded by 2026-06-18 auth reset** — Google profile data should not auto-fill StayOps
+Status: **Superseded by 2026-06-18 auth reset** — Google profile data should not auto-fill Foldy
 operational profile fields.
 
 ### Product Type
@@ -3304,17 +3317,17 @@ Status: Confirmed
 
 ### Property Structure
 
-Decision: StayOps must support both multi-room buildings and standalone house-style properties.
+Decision: Foldy must support both multi-room buildings and standalone house-style properties.
 
 Status: Confirmed
 
 ### Beds24 Integration
 
-Decision: StayOps should integrate with Beds24 because the company uses Beds24 as its channel manager and already has an internal system using the Beds24 API.
+Decision: Foldy should integrate with Beds24 because the company uses Beds24 as its channel manager and already has an internal system using the Beds24 API.
 
 Primary goal:
 
-- Bring reservation, occupancy, availability, room, and property schedule data into StayOps.
+- Bring reservation, occupancy, availability, room, and property schedule data into Foldy.
 
 Status: Confirmed as required, detailed implementation TBD
 
@@ -3333,19 +3346,19 @@ Status: Confirmed
 
 ### Relationship to Existing Internal System
 
-Decision: StayOps can be designed separately from the existing internal system.
+Decision: Foldy can be designed separately from the existing internal system.
 
 Reason:
 
 - The existing internal system focuses on price updates, occupancy, sales, inventory-related operations, and automation.
-- StayOps focuses on on-site staff work, communication, tasks, schedules, and field operations.
-- StayOps does not need to inherit the existing system's technical stack by default.
+- Foldy focuses on on-site staff work, communication, tasks, schedules, and field operations.
+- Foldy does not need to inherit the existing system's technical stack by default.
 
 Status: Confirmed
 
 ### Client Platforms
 
-Decision: StayOps needs both a native mobile app and an admin web app.
+Decision: Foldy needs both a native mobile app and an admin web app.
 
 Reason:
 
@@ -3364,15 +3377,15 @@ Status: Confirmed — **the attendance/clock-in-out exclusion was reversed on 20
 
 ### Cleaning Assignment Scope
 
-Decision: Cleaning staff/personnel assignment is excluded from StayOps first scope because a separate system is already used for that.
+Decision: Cleaning staff/personnel assignment is excluded from Foldy first scope because a separate system is already used for that.
 
-StayOps should focus on cleaning execution tracking: start, timer, completion, and room/property record.
+Foldy should focus on cleaning execution tracking: start, timer, completion, and room/property record.
 
 Status: Confirmed
 
 ### Authentication Methods
 
-Decision: StayOps should support email login and Google login. Apple login is desirable, especially for iOS.
+Decision: Foldy should support email login and Google login. Apple login is desirable, especially for iOS.
 
 Status: Confirmed, implementation details TBD
 
@@ -3380,7 +3393,7 @@ Status: Confirmed, implementation details TBD
 
 Decision:
 
-- StayOps must provide an explicit signup flow in addition to login.
+- Foldy must provide an explicit signup flow in addition to login.
 - Google login is an authentication entry only; first-time Google users are not considered fully onboarded.
 - After Google auth succeeds, users must complete required member profile fields before app access is granted.
 - Required profile fields after Google auth: name, phone number, preferred language, and invite code (or valid invite link) according to onboarding policy.
@@ -3390,7 +3403,7 @@ Status: Confirmed (2026-06-02)
 
 ### Organization Model
 
-Decision: StayOps must support company/workspace separation from the beginning.
+Decision: Foldy must support company/workspace separation from the beginning.
 
 Reason:
 
@@ -3469,7 +3482,7 @@ Status: Confirmed
 
 ### Cleaning Timer Behavior
 
-Decision: Cleaning staff select a room/property, tap start cleaning, tap complete cleaning, and StayOps records total cleaning duration.
+Decision: Cleaning staff select a room/property, tap start cleaning, tap complete cleaning, and Foldy records total cleaning duration.
 
 One staff member may clean up to about 2 rooms/properties per day.
 
@@ -3581,13 +3594,13 @@ Status: Confirmed
 
 ### Cleaning Overdue Notification
 
-Decision: Cleaning normally starts around 10:00 and should be completed by 16:00 at the latest. If a cleaning timer is still in progress after 16:00, StayOps should send one overdue notification to the responsible staff and manager/admin recipients.
+Decision: Cleaning normally starts around 10:00 and should be completed by 16:00 at the latest. If a cleaning timer is still in progress after 16:00, Foldy should send one overdue notification to the responsible staff and manager/admin recipients.
 
 Status: Confirmed
 
 ### Mobile Internal Distribution
 
-Decision: StayOps must be usable on both iPhone and Android before public store release.
+Decision: Foldy must be usable on both iPhone and Android before public store release.
 
 Public App Store / Google Play release is not planned immediately, but the app should be designed for future release.
 
@@ -3603,7 +3616,7 @@ Status: Confirmed
 
 ### Initial Cost Constraint
 
-Decision: StayOps must start as free/low-cost as possible.
+Decision: Foldy must start as free/low-cost as possible.
 
 Apple Developer account will likely not be created immediately and should be prepared later before native app release.
 
@@ -3633,9 +3646,9 @@ Status: Confirmed
 
 ### Reservation Calendar Date Range
 
-Decision: StayOps reservation calendar only needs current month plus the next 2 months for MVP.
+Decision: Foldy reservation calendar only needs current month plus the next 2 months for MVP.
 
-Historical data from 2022 onward is available in the existing internal system but does not need to be shown in StayOps.
+Historical data from 2022 onward is available in the existing internal system but does not need to be shown in Foldy.
 
 Status: Confirmed
 
@@ -3671,7 +3684,7 @@ Status: Confirmed
 
 ### Earliest Empty Availability List
 
-Decision: StayOps should include a list that shows the earliest empty availability from today onward, including today. Users can view this for the selected property/building or for all properties/buildings. When all properties are selected, show the earliest empty availability per property/building.
+Decision: Foldy should include a list that shows the earliest empty availability from today onward, including today. Users can view this for the selected property/building or for all properties/buildings. When all properties are selected, show the earliest empty availability per property/building.
 
 Status: Confirmed
 
@@ -3685,7 +3698,7 @@ Status: Confirmed
 
 ### User Profile and Directory
 
-Decision: Users need a My Profile feature to edit their own basic information such as name, age, and phone number. StayOps also needs a user directory where organization members can see all registered members and call them with a phone button.
+Decision: Users need a My Profile feature to edit their own basic information such as name, age, and phone number. Foldy also needs a user directory where organization members can see all registered members and call them with a phone button.
 
 Status: Confirmed
 
@@ -3948,7 +3961,7 @@ Purpose:
 - Record customer promises or special handling.
 - Help staff avoid forgetting small operational details.
 
-Todo/Tasks should feel fast and convenient like Todoist, while staying connected to StayOps properties, rooms, guests, and reservations.
+Todo/Tasks should feel fast and convenient like Todoist, while staying connected to Foldy properties, rooms, guests, and reservations.
 
 Status: Confirmed
 
@@ -4014,9 +4027,9 @@ Status: Confirmed
 
 ### Theme Modes
 
-Original decision: StayOps must support both light mode and dark mode for mobile PWA and admin web screens.
+Original decision: Foldy must support both light mode and dark mode for mobile PWA and admin web screens.
 
-Status: **Superseded (2026-06-08)** — Dark mode is deferred until after the official launch. For the MVP and internal rollout, StayOps is **light-mode-only**. All dark-mode code, styling (`dark:` utilities, dark CSS variable blocks), theme state/persistence, and theme-toggle UI have been removed. The `profiles.theme_preference` column/enum remains in the database (already-applied migration, `not null default 'system'`) but is no longer read or written by the app; its removal is out of scope for now (see Current Status). Dark mode may be revisited post-launch as a fresh slice.
+Status: **Superseded (2026-06-08)** — Dark mode is deferred until after the official launch. For the MVP and internal rollout, Foldy is **light-mode-only**. All dark-mode code, styling (`dark:` utilities, dark CSS variable blocks), theme state/persistence, and theme-toggle UI have been removed. The `profiles.theme_preference` column/enum remains in the database (already-applied migration, `not null default 'system'`) but is no longer read or written by the app; its removal is out of scope for now (see Current Status). Dark mode may be revisited post-launch as a fresh slice.
 
 ### Theme Preference
 
@@ -4026,7 +4039,7 @@ Status: **Superseded (2026-06-08)** — The theme preference control has been re
 
 ### Project Workflow
 
-Decision: StayOps should follow a plan/design/document/implement/test/review/update-docs workflow.
+Decision: Foldy should follow a plan/design/document/implement/test/review/update-docs workflow.
 
 Any feature change, requirement change, permission change, UI flow change, data model change, or technical change must update the related Markdown files.
 
@@ -4034,7 +4047,7 @@ Status: Confirmed
 
 ### AI Collaboration Rules
 
-Decision: Codex, Claude, Cursor, and any other AI tools working on StayOps must follow shared Markdown documentation as the source of truth and update docs when making project changes.
+Decision: Codex, Claude, Cursor, and any other AI tools working on Foldy must follow shared Markdown documentation as the source of truth and update docs when making project changes.
 
 Status: Confirmed
 
@@ -4113,16 +4126,16 @@ Status: Confirmed
 
 ### App Splash / Launch Screen
 
-Decision: StayOps should show a brief splash/launch screen when the mobile app/PWA first opens.
+Decision: Foldy should show a brief splash/launch screen when the mobile app/PWA first opens.
 
 Direction:
 
 - Use a white or bright gray-white background.
-- Show the StayOps app logo centered on the screen.
+- Show the Foldy app logo centered on the screen.
 - Keep the splash brief, similar to common app launch experiences such as Instagram or Facebook.
 - Do not use the splash as a marketing page.
-- The final StayOps logo is not designed yet, so the splash screen remains required but final visual design depends on later logo work.
-- Temporary designs may use a StayOps wordmark or placeholder logo.
+- The final Foldy logo is not designed yet, so the splash screen remains required but final visual design depends on later logo work.
+- Temporary designs may use a Foldy wordmark or placeholder logo.
 
 Status: Confirmed requirement; logo design pending
 
@@ -4174,7 +4187,7 @@ Confirmed structural direction:
 - Reservation bars span check-in to check-out.
 - Reservation bars display guest name and number of guests only.
 - Booking.com/Booking uses blue-teal, Airbnb uses soft light pink, Direct/Other uses neutral gray.
-- No price, revenue, payment, rate, sales, or inventory data in StayOps MVP.
+- No price, revenue, payment, rate, sales, or inventory data in Foldy MVP.
 - Selected reservation detail surface may show guest, property, room, dates, guests, channel, phone, Copy, and Call. Mobile uses a slide-up bottom sheet; admin web may use an inspector/drawer if needed.
 - Earliest available list remains required.
 
@@ -4182,7 +4195,7 @@ Status: Confirmed structural direction; final Stitch v1 not accepted
 
 ### Large-Building Mobile Calendar Strategy
 
-Decision: For buildings with many rooms, such as the upcoming 26-room hotel or any property with about 28 rooms, StayOps should not attempt to show every room's reservations inside one normal mobile monthly date-cell calendar.
+Decision: For buildings with many rooms, such as the upcoming 26-room hotel or any property with about 28 rooms, Foldy should not attempt to show every room's reservations inside one normal mobile monthly date-cell calendar.
 
 Recommended mobile structure:
 
@@ -4275,7 +4288,7 @@ Status: Confirmed
 
 ### Wordmark Color — Unified to `text-foreground`
 
-Decision: The "Stay Ops" wordmark in both mobile shell (top header) and admin shell (sidebar) uses `text-foreground` (neutral dark) for consistency. Previously the admin wordmark used `text-primary` (teal). The admin identity badge (square teal `S` icon) still uses `bg-primary`/`text-primary-foreground` so brand color remains present.
+Decision: The "Foldy" wordmark in both mobile shell (top header) and admin shell (sidebar) uses `text-foreground` (neutral dark) for consistency. Previously the admin wordmark used `text-primary` (teal). The admin identity badge (square teal `S` icon) still uses `bg-primary`/`text-primary-foreground` so brand color remains present.
 
 Status: Confirmed
 
@@ -4303,7 +4316,7 @@ Status: Confirmed (2026-06-09)
 
 ### Attendance / Clock-In-Out + Payroll — Scope Change (Approved)
 
-Decision: Attendance / clock-in-out and hourly payroll are now **in scope** for StayOps. This explicitly reverses the earlier "First Mobile Workflow Priorities" exclusion (attendance excluded because another app handles it) and the "Out of Scope → Attendance / Clock-In and Clock-Out" entry in `docs/planning/03-mvp-priority.md`.
+Decision: Attendance / clock-in-out and hourly payroll are now **in scope** for Foldy. This explicitly reverses the earlier "First Mobile Workflow Priorities" exclusion (attendance excluded because another app handles it) and the "Out of Scope → Attendance / Clock-In and Clock-Out" entry in `docs/planning/03-mvp-priority.md`.
 
 Scope nuance (important):
 
@@ -4336,7 +4349,7 @@ Confirmed policy baseline:
 - No automatic break deduction.
 - No overtime, holiday, public-holiday, or night premiums in the first payroll slice.
 - Hourly pay uses 1-minute units and rounds the final monthly gross to the nearest 10 yen.
-- Taxes, insurance, deductions, and salaried payroll remain outside StayOps.
+- Taxes, insurance, deductions, and salaried payroll remain outside Foldy.
 - Users can see only their own attendance / pay; only `owner` and explicit `attendance_payroll_admin` users can see org-wide payroll data, finalize months, reopen, and export.
 - Site master remains owner-only.
 
@@ -4492,7 +4505,7 @@ Implementation direction:
   (`effectiveNext`), overriding both the role-based admin default (`state.redirectTo`) and any
   `?next=/admin/...` value.
 - On mobile devices, the dev-seed login collapses to a single test-admin button labeled
-  **Stay Ops E2E Admin** for local QA only.
+  **Foldy E2E Admin** for local QA only.
 
 Reason: users should never have to decide between "dashboard version" and "mobile version" on the
 first screen. The correct surface should be selected automatically by device. `effectiveNext`
@@ -4701,7 +4714,7 @@ Status: Confirmed (2026-06-22).
 
 ### Service worker introduced (installability + offline), navigations stay network-first
 
-Decision: StayOps now ships a minimal service worker (`public/sw.js`, registered prod-only) plus a
+Decision: Foldy now ships a minimal service worker (`public/sw.js`, registered prod-only) plus a
 real icon set and an `/offline` fallback, to make the installed PWA installable on Android (Chrome's
 install prompt requires a SW with a fetch handler + a maskable icon) and to show a friendly offline
 page instead of a blank error.
@@ -4875,7 +4888,7 @@ Removed:
 
 Also: `src/app/admin/users/[id]/page.tsx` `getStatusLabel` no longer inlines ko/ja/en membership-status
 labels; it now reads `dictionary.common.{active,invited,removed,suspended}`, matching the users list
-page (`src/app/admin/users/page.tsx`). The "Stay Ops" wordmark stays hardcoded in the shells — it is a
+page (`src/app/admin/users/page.tsx`). The "Foldy" wordmark stays hardcoded in the shells — it is a
 brand mark, locale-invariant by design (see design-direction doc), not translatable UI copy.
 
 Deferred follow-up: the flat `dictionary.auth.*` block (`loginTitle`, `subtitle`, `magicLinkSent`,
@@ -5181,7 +5194,7 @@ Status: Confirmed (2026-07-14). 상세 이력은 `docs/planning/06-current-statu
 
 ## 어드민 수리·점검 콘솔 — 디자인 우선 이식, 백엔드 후속 (2026-07-14)
 
-Claude Design 핸드오프(`StayOps 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 `/admin/maintenance`에
+Claude Design 핸드오프(`Foldy 수리 점검 (admin)/수리 점검 현황 (admin).html`)를 `/admin/maintenance`에
 **디자인 100% 그대로** 이식하고, **데이터는 전부 목데이터**로 둔 채 백엔드 연동을 다음 사이클로 미룬다.
 청소 콘솔이 밟았던 순서(디자인 이식 → 실데이터 연결 → 라이브 버그 수정)를 그대로 반복한다.
 
@@ -5279,7 +5292,7 @@ UI 를 가지며, 새 공지/편집·게시/재게시/보관/초안 복귀/삭�
 읽음 추적)은 기존 그대로 재사용했고 스키마 변경은 없다.
 
 Reason: 주문·분실물·수리 콘솔과 동일한 대시보드 콘솔 계약(§4)에 공지도 맞춰, 어드민을 모바일 공지의
-배포·감사 관리 표면으로 정리하기 위함. Claude Design 핸드오프("StayOps 공지 관리 (admin)")를 StayOps
+배포·감사 관리 표면으로 정리하기 위함. Claude Design 핸드오프("Foldy 공지 관리 (admin)")를 Foldy
 admin-console.css 토큰·공유 primitive 위에 1:1 이식했다.
 
 Scope: 신규 `src/lib/admin-announcements.ts`(도달/읽음 파생 지표 배치 로드), 결과 반환형 서버 액션 4종,
@@ -5415,11 +5428,11 @@ Decision: 벤치마크(Todoist)처럼 **관리함(Inbox) = 프로젝트에 속�
 
 ## 어드민 Todoist 콘솔 구현 착수 — Claude Design 이식 (2026-07-27)
 
-Decision: 대시보드 Todoist 콘솔을 Claude Design 핸드오프("StayOps 투두 (admin)") 기준으로 구현 시작.
+Decision: 대시보드 Todoist 콘솔을 Claude Design 핸드오프("Foldy 투두 (admin)") 기준으로 구현 시작.
 `/admin/tasks` 신설(legacy `/admin/recurring-work`는 리다이렉트), 사이드바 "Todoist" 활성. 기존 tasks
 백엔드(getVisibleTasks/getVisibleProjects/getShareableUsers + task 액션)를 재사용하고, 결과 반환형 콘솔
 액션(`src/app/admin/tasks/actions.ts`) + 데이터 로더(`src/lib/admin-tasks.ts`)를 얹는다. 단일 날짜 모델·
-기간·문맥형 반복은 모바일과 동일. base.css가 StayOps admin-console.css와 동일 디자인 시스템이라 AdminShell
+기간·문맥형 반복은 모바일과 동일. base.css가 Foldy admin-console.css와 동일 디자인 시스템이라 AdminShell
 셸을 재사용하고 todo.css의 투두 전용 스타일만 이식.
 
 업무 지시: 새 컬럼 `tasks.is_directive`(마이그레이션 `202607270001_task_directive.sql` — Supabase 적용
@@ -5898,7 +5911,7 @@ CLAUDE.md §3 의 "cards/sheets stay white (`bg-surface`)" 토큰 계약도 파�
 
 **문제.** 규칙이 "8자 이상 + 영문자 + 숫자" 뿐이라 `password1` / `stayops1` 같은 **유출 목록
 상위 문자열이 전부 통과**했다. 실제로 iOS 키체인이 "이 암호는 데이터 유출에 노출되었다"고
-경고하는 상황이 나왔다(그 경고는 StayOps 유출이 아니라 비밀번호 문자열 자체에 대한 것).
+경고하는 상황이 나왔다(그 경고는 Foldy 유출이 아니라 비밀번호 문자열 자체에 대한 것).
 
 **결정. 앱과 Supabase 두 겹으로 막는다.**
 
@@ -5927,7 +5940,7 @@ Supabase 의 leaked password protection 은 **Pro 플랜 전용**이라 현재 �
 
 **결정: 지금은 넘어간다.**
 
-- StayOps 는 **초대코드로만 가입하는 폐쇄형**이고 사용자는 실제 직원 소수다. 공개 서비스와 위험
+- Foldy 는 **초대코드로만 가입하는 폐쇄형**이고 사용자는 실제 직원 소수다. 공개 서비스와 위험
   수준이 다르다.
 - 이번에 문제가 된 것(iOS 키체인의 "데이터 유출에 노출된 암호" 경고)은 `password1` 류 유출 목록
   상위 문자열이고, **같은 날 강화한 앱 정책이 이미 잡는다** — 10자 이상 + 제품·도메인 유추 문자열
@@ -6170,25 +6183,25 @@ property_name 공백 0, 객실 마스터에 없는 조합 0종). 캘린더 페�
 문제인데 수집이 스스로 알릴 수는 없다. 하루 4회 안정적으로 도는 reconcile 워크플로에 얹는 것이
 현실적이다.
 
-## 2026-09-09 채용 사이트 연동 — 밀어넣기(push), 접수는 채용 사이트 / 심사는 StayOps
+## 2026-09-09 채용 사이트 연동 — 밀어넣기(push), 접수는 채용 사이트 / 심사는 Foldy
 
-외부 채용 사이트(haru-recruit / Firebase)의 지원서를 StayOps 로 받기로 했다. 1단계(수신)를 구현했다.
+외부 채용 사이트(haru-recruit / Firebase)의 지원서를 Foldy 로 받기로 했다. 1단계(수신)를 구현했다.
 도메인 계약은 `docs/product/30-recruit-workflow.md`.
 
 ### 왜 밀어넣기인가
 
-처음에는 StayOps 가 Firestore 를 읽어오는 방식(pull)을 검토했다. Firebase 요금제가 Spark 면
+처음에는 Foldy 가 Firestore 를 읽어오는 방식(pull)을 검토했다. Firebase 요금제가 Spark 면
 Cloud Functions 를 못 써 push 가 불가능하기 때문이다. 그러나 채용 사이트 소스를 확인하니 **v2 함수
 `onApplicationCreated` 가 이미 배포되어 있었다**(Slack 알림 발송). v2 함수는 Blaze 에서만 배포되므로
 push 가 가능하고, **이미 지원서 생성 시점에 도는 함수에 호출 한 곳을 더하면 끝난다.**
 
-이 방식에서 StayOps 는 **Firebase 자격증명이 전혀 필요 없다.** pull 이었다면 서비스 계정 키를
-StayOps 서버에 두고 두 DB 의 상태를 계속 맞춰야 했다.
+이 방식에서 Foldy 는 **Firebase 자격증명이 전혀 필요 없다.** pull 이었다면 서비스 계정 키를
+Foldy 서버에 두고 두 DB 의 상태를 계속 맞춰야 했다.
 
 ### 왜 기능이 겹치지 않는가
 
 채용 사이트 어드민의 `status` 는 문서 생성 시 `"대기 중"` 으로 박히는 표시용 값이고 심사 워크플로가
-없다. 그래서 심사를 StayOps 가 가져와도 기존 화면이 하던 일을 빼앗지 않는다. 반대로 상태를 Firestore
+없다. 그래서 심사를 Foldy 가 가져와도 기존 화면이 하던 일을 빼앗지 않는다. 반대로 상태를 Firestore
 로 되돌려 쓰지는 않는다 — 원본을 두 곳에서 쓰면 어긋난다.
 
 ### 이 결정에 딸린 것들
@@ -6205,7 +6218,7 @@ StayOps 서버에 두고 두 DB 의 상태를 계속 맞춰야 했다.
 
 ### 채용 사이트 쪽 미결
 
-Slack 웹훅 URL 이 `functions/index.js` 에 하드코딩되어 있다. StayOps 시크릿을 넣는 김에 함께
+Slack 웹훅 URL 이 `functions/index.js` 에 하드코딩되어 있다. Foldy 시크릿을 넣는 김에 함께
 환경변수로 옮기기를 권한다.
 
 ## 2026-09-09 초대코드 생성 — 조직·역할만 고르고 나머지는 자동 생성
@@ -6370,7 +6383,7 @@ body 를 상속해 «우연히» 맞고 있었다).
 
 ## 2026-09-16 STAY ARI Manager 이전 — 기획 확정
 
-업무가 웹 두 개에 나뉘어 있다(StayOps 현장 운영 / STAY ARI Manager 가격·매출·자동화).
+업무가 웹 두 개에 나뉘어 있다(Foldy 현장 운영 / STAY ARI Manager 가격·매출·자동화).
 **하나의 웹으로 합치고 저쪽을 폐지한다.** 기획 문서:
 [31](../product/31-stay-ari-migration-overview.md) ·
 [32](../product/32-ops-admin-area.md) ·
@@ -6392,7 +6405,7 @@ body 를 상속해 «우연히» 맞고 있었다).
   가져오는 캘린더는 쓰기라 같은 화면에 두면 「보러 갔다가 고치는」 사고가 난다
 - **권한은 키 하나**(`ops_admin.access`). 들어오는 사람이 사무실 직원 극소수이고 들어오면 전부
   쓴다. 기능별로 쪼개지 않는다 — 나중에 필요하면 쪼갤 수 있게 설계돼 있다
-- **StayOps 가 Beds24 에 쓰는 것은 이번이 처음이다.** 지금까지 전부 읽기였다. 확인 단계(무엇이
+- **Foldy 가 Beds24 에 쓰는 것은 이번이 처음이다.** 지금까지 전부 읽기였다. 확인 단계(무엇이
   몇 칸 바뀌는지) · 미리보기 · 되읽어 대조를 필수로 둔다
 - **정합성 점검은 개발 이후로 미룬다.** 단 매출 화면을 켜기 전에는 반드시 해결한다
   (예약 2,767건 중 가격이 있는 것이 2,400건 = 87%)
@@ -6404,7 +6417,7 @@ body 를 상속해 «우연히» 맞고 있었다).
 
 ## 2026-09-24 지원서 인쇄 — 연락처는 파일에서 빼고 종이에는 넣는다
 
-예전 채용 사이트 관리자 포털에 있던 「지원서 인쇄」를 StayOps 로 되살렸다. 면접장에 종이 지원서를
+예전 채용 사이트 관리자 포털에 있던 「지원서 인쇄」를 Foldy 로 되살렸다. 면접장에 종이 지원서를
 들고 들어가는 업무가 실제로 있다.
 
 **결정 1: 연락처(전화·카카오·주소)를 인쇄물에는 넣는다.** Excel·PDF 내보내기는 계속 뺀다.
@@ -6429,7 +6442,7 @@ body 를 상속해 «우연히» 맞고 있었다).
 받는 죽은 화면이었고, 그 화면의 「인증」은 인증이 아니었다 — 비밀번호가 소스에 상수로 박혀
 브라우저에서 문자열 비교만 했다. 고쳐 쓸 가치보다 없애는 편이 낫다.
 
-**결정 2: 실시간 상담도 함께 없앤다. StayOps 로 이관하지 않는다.** 폐지 전에 문의 3건을 내보냈고
+**결정 2: 실시간 상담도 함께 없앤다. Foldy 로 이관하지 않는다.** 폐지 전에 문의 3건을 내보냈고
 미답변은 없었다. 지원자 연락은 FAQ·개인정보처리방침의 카카오톡 안내가 계속 담당한다.
 
 **결정 3: Firestore 규칙에서 `siteStats` 는 다시 열지 않는다.** 방문자 카운터가 이미 403 으로
@@ -6439,16 +6452,16 @@ body 를 상속해 «우연히» 맞고 있었다).
 
 **결정 4: 공고 편집은 당분간 코드로 둔다.** 공고가 `JobListingsPage.tsx` 에 하드코딩돼 있고
 현재 1건이다(어드민에도 편집 기능은 원래 없었다). 시급 한 줄 고치는 데도 수정→빌드→배포가 필요한
-구조지만, 공고를 DB 로 옮기고 StayOps 에 관리 화면을 붙이는 작업은 공개 읽기 API 를 새로 내야 해서
+구조지만, 공고를 DB 로 옮기고 Foldy 에 관리 화면을 붙이는 작업은 공개 읽기 API 를 새로 내야 해서
 비용이 크다. **수정이 잦아지면 그때 옮긴다.**
 
-경계는 이렇게 굳었다 — **채용 사이트는 보여주고 받는다, StayOps 는 읽고 관리한다.** StayOps 가
+경계는 이렇게 굳었다 — **채용 사이트는 보여주고 받는다, Foldy 는 읽고 관리한다.** Foldy 가
 심사 상태를 Firestore 로 되돌려 쓰지 않는 원칙(§2)을 화면 층까지 확장한 것이다.
 
-## 2026-09-24 (3차) 채용 사이트 StayOps 이전 — **가능하지만 미루기로** (보류)
+## 2026-09-24 (3차) 채용 사이트 Foldy 이전 — **가능하지만 미루기로** (보류)
 
-「채용 사이트 자체를 StayOps 로 가져올 수 있나」를 조사했다. **기술적으로는 할 만하다.
-다만 지금 할 일은 아니다** — 오늘 정리한 경계(사이트는 받는다, StayOps 는 관리한다)가 잘 돌고
+「채용 사이트 자체를 Foldy 로 가져올 수 있나」를 조사했다. **기술적으로는 할 만하다.
+다만 지금 할 일은 아니다** — 오늘 정리한 경계(사이트는 받는다, Foldy 는 관리한다)가 잘 돌고
 있고, 기능적으로 아쉬운 것이 없다. 다시 논의할 때 조사를 되풀이하지 않도록 결론만 남긴다.
 
 ### 장벽이 낮은 쪽 (예상보다 좋았다)
@@ -6470,14 +6483,14 @@ Firebase 프로젝트 자체.
 ### 진짜 비용은 기술이 아니라 **다국어 규칙**이다
 
 채용 사이트는 전부 한국어 하드코딩이다 — 랜딩 · 공고 · FAQ 수십 문항 · 공지 · 약관 ·
-개인정보처리방침 · 지원 폼. StayOps 로 들어오면 CLAUDE.md 의 하드 룰상 **ja/en 번역이 필수**가 되고,
+개인정보처리방침 · 지원 폼. Foldy 로 들어오면 CLAUDE.md 의 하드 룰상 **ja/en 번역이 필수**가 되고,
 여기에 법적 문서 번역이 포함된다. **이전 비용의 절반 이상이 이것이고, 기술 전환보다 크다.**
 
 ### 그 밖에 걸리는 것
 
 - **도메인·SEO** — `stayari.web.app` 에서 옮기면 URL 이 바뀐다. 공고 링크를 뿌려둔 곳(인스타그램 등)
   리다이렉트 필요.
-- **서비스워커** — StayOps 는 PWA 라 `sw.js` 가 네비게이션을 캐시한다. 같은 오리진의 공개 마케팅
+- **서비스워커** — Foldy 는 PWA 라 `sw.js` 가 네비게이션을 캐시한다. 같은 오리진의 공개 마케팅
   페이지가 그 캐시 정책에 걸린다.
 - **디자인 계약** — CLAUDE.md 의 모바일 셸/어드민 콘솔 계약은 **운영 도구용**이다. 공개 마케팅
   페이지는 둘 다 아니므로, 「공개 페이지는 이 계약 밖」을 명시하는 결정이 따로 필요하다.
@@ -6487,7 +6500,7 @@ Firebase 프로젝트 자체.
 
 1. **공고를 DB 로** (`job_postings` + `/admin/recruit` 관리 화면). 채용 사이트는 그대로 두고 읽어가게
    한다. **1단계만 해도 「시급 한 줄 고치려면 배포해야 하는」 문제가 풀린다.**
-2. **지원 폼만 StayOps 로** (`/careers/apply`) — Firestore 동기화가 여기서 사라진다.
+2. **지원 폼만 Foldy 로** (`/careers/apply`) — Firestore 동기화가 여기서 사라진다.
 3. 나머지 페이지 이전 (번역 포함)
 4. Firebase 프로젝트 정리
 

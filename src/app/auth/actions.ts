@@ -80,7 +80,7 @@ function preserveOnboardingLang(next: string, lang: string) {
 const MIN_PASSWORD_LENGTH = 10;
 
 /** 제품·도메인에서 곧바로 유추되는 문자열. 부분 일치로 막는다(대소문자 무시). */
-const BANNED_PASSWORD_FRAGMENTS = ["stayops", "password", "qwerty", "123456", "admin", "letmein"];
+const BANNED_PASSWORD_FRAGMENTS = ["stayops", "foldy", "password", "qwerty", "123456", "admin", "letmein"];
 
 function isValidPassword(password: string, email?: string): boolean {
   if (password.length < MIN_PASSWORD_LENGTH) return false;

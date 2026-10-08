@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the initial Supabase/PostgreSQL data model for StayOps.
+This document defines the initial Supabase/PostgreSQL data model for Foldy.
 
 The model must support:
 
@@ -40,7 +40,7 @@ organization_id is required on every operational table.
 
 ## 2. Internal IDs + External IDs
 
-StayOps should use internal UUID primary keys.
+Foldy should use internal UUID primary keys.
 
 External systems such as Beds24 should be mapped through external ID fields.
 
@@ -709,7 +709,7 @@ unique (organization_id, reservation_id)
 Notes:
 - One note row per reservation per organization.
 - Empty save from the admin calendar deletes the row instead of storing blank text.
-- This table is operational metadata owned by StayOps, distinct from Beds24 reservation source data.
+- This table is operational metadata owned by Foldy, distinct from Beds24 reservation source data.
 - Read access is intentionally broader than write access: all active organization members can read
   the note, while create / update / delete remains limited to the privileged reservation-calendar
   operator roles.
@@ -1323,7 +1323,7 @@ signal. Unmatched reviews keep NULLs; nothing is inferred.
 
 `private_feedback` is Airbnb's guest-to-host private note. It carries no score and must never feed
 risk classification or rating aggregation; clients render it visually separated from the public
-review. `ota_reply_text` surfaces a reply that already exists on the OTA — StayOps does not compose
+review. `ota_reply_text` surfaces a reply that already exists on the OTA — Foldy does not compose
 or send replies in v1.
 
 **Field availability is asymmetric between providers.** Airbnb returns no `reservation_id` and no
@@ -1384,7 +1384,7 @@ aggregate only after measuring a real query-performance need; it must remain der
 
 ## bug_reports
 
-StayOps 앱/시스템 버그 및 제품 문제 신고. **1차 구현 (2026-06-25).** Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요).
+Foldy 앱/시스템 버그 및 제품 문제 신고. **1차 구현 (2026-06-25).** Migration: `supabase/migrations/<timestamp>_bug_reports.sql` (DB engineer 결과 확인 후 파일명 갱신 필요).
 
 ```txt
 id                    uuid primary key default gen_random_uuid()
@@ -1761,7 +1761,7 @@ Basic rules:
 - Developer/Super Admin can access all organizations.
 - Part-time Staff can create/view requests but cannot change statuses.
 - Order request processing is office-level only.
-- Price/revenue data is not stored in StayOps MVP reservation tables.
+- Price/revenue data is not stored in Foldy MVP reservation tables.
 
 ## Resolved Decisions
 

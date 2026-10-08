@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
   // ── Resolve onboarding state server-side ──────────────────────────────────
   // This is the primary gate for Google OAuth new-user flows: after a successful
-  // Google sign-in the browser lands here with no prior StayOps profile or team
+  // Google sign-in the browser lands here with no prior Foldy profile or team
   // membership.  We check the state using the session that was just established
   // (the Supabase SSR helper writes the session into the mutable cookie store
   // that subsequent helpers in the same request cycle can read).

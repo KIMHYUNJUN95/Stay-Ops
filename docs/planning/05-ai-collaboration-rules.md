@@ -2,7 +2,7 @@
 
 ## Purpose
 
-StayOps may be worked on with multiple AI tools such as Codex, Claude, Cursor, and others.
+Foldy may be worked on with multiple AI tools such as Codex, Claude, Cursor, and others.
 
 This document defines shared rules so all AI assistants follow the same project direction.
 
@@ -92,7 +92,7 @@ When implementation begins:
 - Keep permissions enforced server-side/database-side, not only in UI.
 - Keep mobile PWA and admin web behavior role-aware.
 - Prefer small, testable modules.
-- Implement code in line with the documented StayOps project flow (`docs/planning/04-project-workflow.md`).
+- Implement code in line with the documented Foldy project flow (`docs/planning/04-project-workflow.md`).
 - Do not skip planning/flow constraints even under fast iteration; code quality and workflow consistency are both required.
 - If implementation pressure conflicts with the documented flow, pause and update docs/decision log first, then continue coding.
 
@@ -148,7 +148,7 @@ All assistants must treat the project workflow as an implementation contract, no
 - Use role-based permissions.
 - Part-time Staff can create/view requests but cannot change statuses.
 - Order request processing is office-level.
-- Price/revenue data should not be shown in StayOps MVP.
+- Price/revenue data should not be shown in Foldy MVP.
 
 ## Communication Rule
 

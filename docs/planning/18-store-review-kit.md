@@ -82,7 +82,7 @@
 ## 6. 데모 계정 (계획 B6)
 
 - 스크립트: `node scripts/dev/seed-review-demo.js` (계획만 출력) → `--apply` (실제 생성, 심사관 비밀번호를 **한 번만** 출력).
-- 조직 「StayOps Demo」(slug `stayops-review-demo`) — 실제 조직과 `organization_id` 로 분리. 운영 DB 에 만든다(앱이 운영 웹을 띄우므로).
+- 조직 「Foldy Demo」(slug `stayops-review-demo`) — 실제 조직과 `organization_id` 로 분리. 운영 DB 에 만든다(앱이 운영 웹을 띄우므로).
 - 심사관 계정: `stayops.review@haru-tokyo.com`(기본값, `--email` 로 변경) · **owner** · 언어 en · 메일 인증 완료 상태 → 로그인하면 바로 홈.
 - 다른 직원 2명(Mika Tanaka · Ken Sato, 로그인용 아님) — 게시판 글 · 댓글의 작성자라서 심사관이 **신고 · 차단**을 시험할 수 있다.
 - 샘플: 건물 2(객실 5) · 공지 2 · 게시판 글 3 + 댓글 3 · 할 일 3(오늘 · 내일 · 관리함) · 유지보수 1 · 분실물 1. 모두 가상 데이터.
@@ -101,7 +101,7 @@
 
 | 항목 | 값 |
 | --- | --- |
-| 앱 이름 | StayOps |
+| 앱 이름 | Foldy |
 | 카테고리 | App Store: 비즈니스(주) · 생산성(부) / Google Play: 비즈니스 |
 | 지원 URL | `<앱 주소>/support` |
 | 개인정보처리방침 URL | `<앱 주소>/legal/privacy` |
@@ -129,7 +129,7 @@
 - **설명:**
 
 ```txt
-StayOps 는 숙박 시설 운영팀이 매일 하는 일을 한곳에 모은 업무 앱입니다.
+Foldy 는 숙박 시설 운영팀이 매일 하는 일을 한곳에 모은 업무 앱입니다.
 소속 조직에서 초대받은 구성원만 사용할 수 있습니다.
 
 ■ 청소
@@ -163,7 +163,7 @@ StayOps 는 숙박 시설 운영팀이 매일 하는 일을 한곳에 모은 업
 - **説明:**
 
 ```txt
-StayOps は、宿泊施設の運営チームが毎日行う業務をひとつにまとめたアプリです。
+Foldy は、宿泊施設の運営チームが毎日行う業務をひとつにまとめたアプリです。
 所属組織から招待されたメンバーのみご利用いただけます。
 
 ■ 清掃
@@ -197,7 +197,7 @@ StayOps は、宿泊施設の運営チームが毎日行う業務をひとつに
 - **Description:**
 
 ```txt
-StayOps brings the daily work of accommodation operations teams into one app.
+Foldy brings the daily work of accommodation operations teams into one app.
 It is for members invited by their organization.
 
 ■ Cleaning

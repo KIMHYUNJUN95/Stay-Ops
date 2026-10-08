@@ -78,7 +78,7 @@ async function handle(request: NextRequest) {
     // 가므로 조직 운영 언어(한국어)로 고정하는 것이 맞다. UI 카피가 아니다.
     const result = await postSlackText(
       [
-        ":rotating_light: *StayOps — 외부 리뷰 수집이 멈춘 것 같습니다*",
+        ":rotating_light: *Foldy — 외부 리뷰 수집이 멈춘 것 같습니다*",
         `마지막 수집: ${lastTouched} (약 ${ageDays}일 전)`,
         "GitHub Actions → “Beds24 external review sync” 실행 이력을 확인해 주세요.",
       ].join("\n"),

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-StayOps needs personal profile management and a company user directory.
+Foldy needs personal profile management and a company user directory.
 
 Users should be able to manage their own basic information, and all members should be able to see who is registered in the organization.
 

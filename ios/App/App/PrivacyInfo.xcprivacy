@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  StayOps 앱 개인정보 매니페스트 (계획 C6, docs/planning/17-app-release-plan.md).
+  Foldy 앱 개인정보 매니페스트 (계획 C6, docs/planning/17-app-release-plan.md).
   수집 항목은 src/lib/legal-content.ts 「수집하는 정보」와 같아야 한다 — 그쪽이 바뀌면 여기와 App Store 개인정보 라벨을 같이 고친다.
   추적 없음 · 광고 없음. 모든 항목 = 계정에 연결(Linked), 목적 = 앱 기능(App Functionality).
   Required Reason API: 앱 코드(AppDelegate · SceneDelegate)는 쓰지 않는다. Capacitor 와 플러그인은 각자 매니페스트를 포함한다.

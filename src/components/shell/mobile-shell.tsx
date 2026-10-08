@@ -764,7 +764,7 @@ export function MobileShell({
               onClick={closeSidebar}
               className="wordmark text-[24px] text-foreground"
             >
-              Stay Ops
+              Foldy
             </Link>
             <button
               aria-label={dictionary.common.menu}
@@ -949,7 +949,7 @@ export function MobileShell({
                   href="/mobile"
                   className="wordmark absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[20px] text-foreground"
                 >
-                  Stay Ops
+                  Foldy
                 </Link>
 
                 {/* Notification bell — top-bar shortcut, left of profile */}

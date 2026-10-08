@@ -477,7 +477,7 @@ As-built (2026-06-15):
   message; a selected date with no tasks shows the day-sheet empty message.
 
 Production-polish pass (2026-06-11): the month nav + weekday row + grid sit inside a single white
-`bg-surface` card lifted off the ivory canvas (matching the rest of the StayOps card system); the
+`bg-surface` card lifted off the ivory canvas (matching the rest of the Foldy card system); the
 legend moved to a quiet divider row directly under the grid it explains. Grid cells share a
 fixed-height marker row for even vertical rhythm, with distinct calm states for today (soft tint +
 inset ring) vs the selected day (filled accent + lifted shadow). The day sheet's task list scrolls

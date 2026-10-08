@@ -245,7 +245,7 @@ export function MobileSideNav({
       >
         <div className="flex items-center gap-2.5 px-2 pb-3 pt-1">
           <Link className="wordmark text-[21px] text-foreground" href="/mobile">
-            Stay Ops
+            Foldy
           </Link>
           <Link
             aria-label={labels.notifications}

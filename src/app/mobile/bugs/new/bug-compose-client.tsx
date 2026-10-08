@@ -99,7 +99,7 @@ export function BugComposeClient({ copy }: { copy: BugCopy }) {
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      {/* 상단 chrome (Stay Ops 워드마크 + 햄버거 / 프로필) */}
+      {/* 상단 chrome (Foldy 워드마크 + 햄버거 / 프로필) */}
       <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border/60 bg-background px-3">
         <button
           type="button"
@@ -116,7 +116,7 @@ export function BugComposeClient({ copy }: { copy: BugCopy }) {
             fontWeight: 600,
           }}
         >
-          Stay Ops
+          Foldy
         </span>
         <button
           type="button"

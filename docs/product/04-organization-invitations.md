@@ -2,9 +2,9 @@
 
 ## Requirement
 
-StayOps must support company/workspace separation from the beginning.
+Foldy must support company/workspace separation from the beginning.
 
-The first workspace will be the company's internal workspace, but the product should be designed so other companies can use StayOps later without data mixing.
+The first workspace will be the company's internal workspace, but the product should be designed so other companies can use Foldy later without data mixing.
 
 ## Current User Scale
 
@@ -131,7 +131,7 @@ Required onboarding fields before app access (applies equally to email and Googl
 Important onboarding rules:
 
 - Authentication success alone does not grant product access.
-- Users without a valid team invite code can authenticate, but they cannot use any StayOps feature.
+- Users without a valid team invite code can authenticate, but they cannot use any Foldy feature.
 - Incomplete accounts must always return to `continue onboarding`, not to the normal app.
 - The same onboarding rules apply to both Google and email signup.
 
@@ -169,14 +169,14 @@ Rules:
 
 ## Account Identity Rules
 
-- Same email address should map to one StayOps account
+- Same email address should map to one Foldy account
 - Google login and email/password login should attach to the same account when the email matches
 - Phone number is an account-level unique value
 - If an account exists but onboarding is incomplete, re-signup should resume the same account instead of creating a duplicate
 
 Implementation note:
 
-- Same-email Google/email account attachment currently depends on **Supabase Auth automatic identity linking + confirmed email settings**. StayOps app code explicitly handles duplicate/incomplete-account resume on the email-signup path, but Google sign-in itself relies on the Supabase-side linking policy.
+- Same-email Google/email account attachment currently depends on **Supabase Auth automatic identity linking + confirmed email settings**. Foldy app code explicitly handles duplicate/incomplete-account resume on the email-signup path, but Google sign-in itself relies on the Supabase-side linking policy.
 - Phone number uniqueness remains account-level. If onboarding hits the unique `profiles.phone_number`
   rule, the user is returned to the phone-number step and told to either enter a different number or
   return to login and use the existing account that already owns that number.
@@ -197,7 +197,7 @@ Current business rules:
 - Owner invite code:
   - one-time use only
 - Invite code validation succeeds first, then the app shows the resolved organization + role before final membership activation
-- If a signup is retried for an email that already has an incomplete StayOps account, the app sends the user to sign in and continue that existing onboarding flow instead of creating a duplicate account
+- If a signup is retried for an email that already has an incomplete Foldy account, the app sends the user to sign in and continue that existing onboarding flow instead of creating a duplicate account
 
 Current onboarding role categories:
 

@@ -11,7 +11,7 @@ import { resolveReservationShortcut } from "@/lib/reservation-shortcut";
 import { getCurrentAppSession, hasOrganizationContext } from "@/lib/session";
 
 /**
- * 예약 바로가기 — Slack 알림의 「StayOps 에서 열기」 링크가 닿는 곳.
+ * 예약 바로가기 — Slack 알림의 「Foldy 에서 열기」 링크가 닿는 곳.
  *
  * 도메인 계약: docs/product/36-automation-control.md → 「예약 바로가기 링크」 · 판단은 `src/lib/reservation-shortcut.ts`
  *
@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   robots: { follow: false, index: false },
-  title: "StayOps",
+  title: "Foldy",
 };
 
 export default async function ReservationShortcutPage({ params }: { params: Promise<{ id: string }> }) {

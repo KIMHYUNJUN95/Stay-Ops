@@ -1,7 +1,7 @@
 /*
  * Admin 공지 관리(Announcements) console — screen-local additions on top of
  * admin-console.css + maintenance-console.css. Ported 1:1 from the Claude Design
- * handoff (StayOps 공지 관리 (admin) → announce.css). Reuses the shared primitives
+ * handoff (Foldy 공지 관리 (admin) → announce.css). Reuses the shared primitives
  * as-is (.card/.opsbar/.opscell/.dd/.panel/.modal/.fld/.qtbl/.mtbl/.state/.cstat/
  * .cfhead/.cficon/.cfrec/.kv/.pblock/.cviewbar/.lviews/.who). Only genuinely new
  * bits for this screen live here: 3-status pill colors, flag chips (중요/고정/팝업/이미지),

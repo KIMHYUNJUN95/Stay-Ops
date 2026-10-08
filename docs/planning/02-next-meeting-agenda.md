@@ -8,7 +8,7 @@ Decide the first product direction clearly enough to start detailed planning.
 
 ### 1. Product Identity
 
-- Is `StayOps` the final name or a working name?
+- Is `Foldy` the final name or a working name?
 - Should the product target hotels only, or all accommodation businesses?
 
 ### 2. First Customer

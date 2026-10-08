@@ -1,7 +1,7 @@
 {
-  "name": "StayOps Admin",
-  "short_name": "StayOps Admin",
-  "description": "StayOps operations console for office and management teams.",
+  "name": "Foldy Admin",
+  "short_name": "Foldy Admin",
+  "description": "Foldy operations console for office and management teams.",
   "id": "/admin",
   "scope": "/admin",
   "start_url": "/admin",

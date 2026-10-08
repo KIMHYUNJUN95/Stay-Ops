@@ -66,7 +66,7 @@ export function AdminShell({ activeItem, children, mobileHref = "/mobile", title
           <Link className="side__brand" href="/admin">
             <span className="side__mark" aria-hidden="true" />
             <span style={{ minWidth: 0 }}>
-              <span className="side__wm">Stay Ops</span>
+              <span className="side__wm">Foldy</span>
               <span className="side__role" style={{ display: "block" }}>{c.brandRole}</span>
             </span>
           </Link>

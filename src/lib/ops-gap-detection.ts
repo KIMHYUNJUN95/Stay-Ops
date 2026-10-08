@@ -38,7 +38,7 @@ export type OpsGapCellInput = {
 /**
  * 비활성 유닛 판정 기준.
  *
- * 저쪽 `INACTIVE_MINSTAY_THRESHOLD = 50` 과 **같은 값**이어야 한다. StayOps 의
+ * 저쪽 `INACTIVE_MINSTAY_THRESHOLD = 50` 과 **같은 값**이어야 한다. Foldy 의
  * `BEDS24_INACTIVE_MIN_STAY_THRESHOLD` 도 50 이다 — 세 곳이 갈라지면 같은 방이 한쪽에서만
  * 팔리는 상태가 된다.
  */

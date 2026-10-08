@@ -3,13 +3,13 @@ import { normalizeApplication, type NormalizedApplication, type RecruitSource } 
 import { getSupabaseServiceClient } from "@/lib/supabase/service";
 
 /**
- * 지원서 수신 — 채용 사이트 → StayOps.
+ * 지원서 수신 — 채용 사이트 → Foldy.
  *
  * 채용 사이트의 Cloud Function `onApplicationCreated` 가 이 경로로 보낸다. 백필도 같은 경로를 쓴다.
  *
  * **재전송해도 안전해야 한다.** 함수 재시도, 백필 재실행, 수동 재전송이 모두 일어난다. 그래서
  * `(organization_id, source, external_id)` 유니크로 받고, 이미 있는 행은 **지원자 정보만** 갱신한다.
- * 심사 상태·검토 메모·합격 연결은 StayOps 가 소유한 값이라 절대 덮지 않는다 — 덮으면 「불합격 처리해
+ * 심사 상태·검토 메모·합격 연결은 Foldy 가 소유한 값이라 절대 덮지 않는다 — 덮으면 「불합격 처리해
  * 뒀는데 재전송 한 번에 대기 중으로 돌아가는」 사고가 난다.
  *
  * 도메인 계약: docs/product/30-recruit-workflow.md
@@ -62,7 +62,7 @@ function storageFileName(name: string | null): string {
 }
 
 /**
- * 이력서 파일을 StayOps 비공개 버킷으로 복사한다.
+ * 이력서 파일을 Foldy 비공개 버킷으로 복사한다.
  *
  * **왜 링크만 저장하지 않나.** 원본은 토큰이 박힌 Firebase 다운로드 URL이라 URL 을 아는 사람이면
  * 누구나 열 수 있고, 채용 사이트를 접거나 파일을 지우면 링크가 죽는다. 지원서는 채용 이력으로
@@ -157,9 +157,9 @@ export async function ingestJobApplication(args: {
 
   // **지운 지원서는 되살리지 않는다.**
   //
-  // StayOps 는 Firestore 를 읽기만 하므로 콘솔에서 지워도 원본 문서는 남는다. 그대로 두면 하루
+  // Foldy 는 Firestore 를 읽기만 하므로 콘솔에서 지워도 원본 문서는 남는다. 그대로 두면 하루
   // 1회 전량 훑기가 다시 읽어 넣고, 이력서 파일까지 다시 복사된다 — 지운 개인정보가 되돌아온다.
-  // 「지웠다」는 StayOps 쪽 정보라 여기서 본다. 수신 경로가 이 함수 하나로 모여 있어서 전량
+  // 「지웠다」는 Foldy 쪽 정보라 여기서 본다. 수신 경로가 이 함수 하나로 모여 있어서 전량
   // 훑기·재전송·나중에 붙일 Cloud Function 이 모두 함께 막힌다.
   const { data: tombstone, error: tombstoneError } = await supabase
     .from("job_application_deletions")

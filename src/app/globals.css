@@ -555,7 +555,7 @@ html[data-pane] [data-shell-column] { max-width: 760px !important; margin-inline
   color: var(--foreground);
 }
 
-/* Brand wordmark — serif italic "Stay Ops" used across all shells. */
+/* Brand wordmark — serif italic "Foldy" used across all shells. */
 .wordmark {
   font-family: var(--font-wordmark), "Noto Serif", Georgia, "Times New Roman",
     serif;

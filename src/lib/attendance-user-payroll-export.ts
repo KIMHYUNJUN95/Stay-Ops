@@ -134,7 +134,7 @@ export async function buildUserPayrollWorkbookBase64(
   labels: UserPayrollExportLabels,
 ): Promise<string> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "StayOps";
+  wb.creator = "Foldy";
   wb.created = new Date();
 
   const ws = wb.addWorksheet(data.userName.slice(0, 31), {

@@ -11,7 +11,7 @@ The existing internal system uses:
 - Node.js
 - Multiple external API integrations
 
-However, StayOps can be designed separately because the existing system has a different focus: price updates, occupancy, sales, inventory-related operations, and automation.
+However, Foldy can be designed separately because the existing system has a different focus: price updates, occupancy, sales, inventory-related operations, and automation.
 
 The existing stack should be considered as context, not as a constraint.
 
@@ -169,7 +169,7 @@ Stack:
 - Node.js or serverless functions for Beds24 integration
 - FCM/Expo push notifications
 
-Why this may fit StayOps:
+Why this may fit Foldy:
 
 - Free-start friendly
 - Fast MVP development
@@ -195,7 +195,7 @@ Stack:
 - Cloud Functions / Node.js
 - FCM push notifications
 
-Why this may fit StayOps:
+Why this may fit Foldy:
 
 - Free-start friendly
 - Strong mobile ecosystem
@@ -215,7 +215,7 @@ Stack:
 - Supabase
 - PostgreSQL
 
-Why this may fit StayOps:
+Why this may fit Foldy:
 
 - Strong cross-platform UI consistency
 - Good long-term app polish
@@ -252,7 +252,7 @@ Confirmed MVP stack:
 
 Reason:
 
-- StayOps has many relational entities: companies, properties, rooms, bookings, tasks, schedules, inventory, announcements, comments, roles, and notifications.
+- Foldy has many relational entities: companies, properties, rooms, bookings, tasks, schedules, inventory, announcements, comments, roles, and notifications.
 - Supabase/PostgreSQL may fit this operational model better than a pure NoSQL design.
 - PWA-first avoids immediate Apple Developer and Google Play Console requirements.
 - Next.js gives both mobile web/PWA and admin web a strong foundation.
@@ -277,6 +277,6 @@ Later native option:
 - Offline support level
 - Audit log strategy
 - Whether to integrate with the existing internal system at all
-- Whether StayOps should use Supabase or Firebase
-- Whether StayOps needs a separate admin web app from the beginning
+- Whether Foldy should use Supabase or Firebase
+- Whether Foldy needs a separate admin web app from the beginning
 - Whether admin web should use Next.js or a simpler React/Vite setup

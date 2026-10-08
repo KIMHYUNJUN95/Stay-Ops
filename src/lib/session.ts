@@ -83,7 +83,7 @@ type ActivePlatformAdmin = {
 export const mockSession: AppSession = {
   organization: {
     id: "org_stayops_internal",
-    name: "StayOps Internal",
+    name: "Foldy Internal",
   },
   user: {
     id: "user_sarah_jenkins",

@@ -29,7 +29,7 @@ export default async function MobileUnavailablePage() {
     <main className="min-h-[100svh] bg-surface px-6 py-[max(28px,env(safe-area-inset-top))] text-foreground">
       <section className="mx-auto flex min-h-[calc(100svh-56px)] w-full max-w-[420px] flex-col justify-center">
         <p className="font-serif text-[28px] font-bold italic tracking-[-0.04em] text-foreground">
-          Stay Ops
+          Foldy
         </p>
         <div className="mt-9 rounded-[32px] border border-border bg-card px-6 py-7 shadow-[0_24px_70px_-42px_rgba(16,24,40,0.5)]">
           <p className="text-[12px] font-black uppercase tracking-[0.16em] text-primary">

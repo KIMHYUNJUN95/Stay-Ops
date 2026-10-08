@@ -1,7 +1,7 @@
 /**
  * 앱 심사용 데모 조직 · 계정 · 샘플 데이터 (계획 B6, docs/planning/18-store-review-kit.md 「데모 계정」).
  *
- * 심사관은 초대 코드 없이 이메일 · 비밀번호로 바로 홈에 들어가야 한다. 그래서 별도 조직 「StayOps Demo」를 만들고,
+ * 심사관은 초대 코드 없이 이메일 · 비밀번호로 바로 홈에 들어가야 한다. 그래서 별도 조직 「Foldy Demo」를 만들고,
  * 그 안에 심사관 계정(owner)과 다른 직원 2명, 가상 건물 · 객실 · 공지 · 게시판 글(신고 · 차단을 시험할 「다른 사람의 글」) ·
  * 할 일 · 유지보수 · 분실물을 넣는다. 실제 조직 데이터와는 organization_id 로 분리된다(RLS · 서버 조직 격리).
  *
@@ -42,7 +42,7 @@ const opt = (name) => {
 
 const APPLY = flag("--apply");
 const ORG_SLUG = "stayops-review-demo";
-const ORG_NAME = "StayOps Demo";
+const ORG_NAME = "Foldy Demo";
 const REVIEWER_EMAIL = (opt("--email") || "stayops.review@haru-tokyo.com").toLowerCase();
 const PASSWORD_ARG = opt("--password");
 
@@ -223,7 +223,7 @@ async function seedContent(db, must, orgId, ids) {
       {
         organization_id: orgId,
         created_by_user_id: ids.reviewer,
-        title: "Welcome to StayOps",
+        title: "Welcome to Foldy",
         content: "This is a demo organization for app review. Use the menu to explore cleaning, tasks, maintenance, lost & found, the team board and announcements.",
         status: "published",
         published_at: now,

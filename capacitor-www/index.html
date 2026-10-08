@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>StayOps</title>
+<title>Foldy</title>
 <!--
   Capacitor 앱의 연결 실패 화면 (계획 D2, docs/engineering/03-deployment-strategy.md 「연결 실패 화면」).
   앱은 capacitor.config.ts 의 server.url(배포된 웹)을 띄운다. 그 주소를 불러오지 못하면 `server.errorPath` 로 이 파일이 열린다.
@@ -42,13 +42,13 @@
   var APP_URL = "https://stay-ops-two.vercel.app/";
   var COPY = {
     ko: { offlineTitle: "인터넷에 연결되어 있지 않아요", offlineBody: "연결을 확인한 뒤 다시 시도해 주세요. 연결이 돌아오면 자동으로 다시 불러옵니다.",
-          serverTitle: "StayOps 에 연결할 수 없어요", serverBody: "잠시 후 다시 시도해 주세요. 계속되면 관리자에게 알려 주세요.",
+          serverTitle: "Foldy 에 연결할 수 없어요", serverBody: "잠시 후 다시 시도해 주세요. 계속되면 관리자에게 알려 주세요.",
           retry: "다시 시도", checking: "연결하는 중…", still: "아직 연결되지 않았어요." },
     ja: { offlineTitle: "インターネットに接続されていません", offlineBody: "接続を確認してから、もう一度お試しください。接続が戻ると自動で再読み込みします。",
-          serverTitle: "StayOps に接続できません", serverBody: "しばらくしてから、もう一度お試しください。続く場合は管理者にお知らせください。",
+          serverTitle: "Foldy に接続できません", serverBody: "しばらくしてから、もう一度お試しください。続く場合は管理者にお知らせください。",
           retry: "再試行", checking: "接続しています…", still: "まだ接続されていません。" },
     en: { offlineTitle: "You're offline", offlineBody: "Check your connection and try again. We'll reload automatically once you're back online.",
-          serverTitle: "Can't reach StayOps", serverBody: "Please try again in a moment. If this keeps happening, let your admin know.",
+          serverTitle: "Can't reach Foldy", serverBody: "Please try again in a moment. If this keeps happening, let your admin know.",
           retry: "Try again", checking: "Connecting…", still: "Still offline." }
   };
   function pickLocale() {

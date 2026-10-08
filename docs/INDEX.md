@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This index helps humans and AI assistants understand the StayOps documentation structure.
+This index helps humans and AI assistants understand the Foldy documentation structure.
 
 Status labels:
 
@@ -72,7 +72,7 @@ Historical: Retained for decision history but superseded by a newer document or 
 | [Board Workflow](./product/23-board-workflow.md) | Living | Implemented free internal board for active members |
 | [Project Workflow](./product/23-project-workflow.md) | Living | Implemented project boards and task coordination |
 | [Attendance Workflow](./product/24-attendance-workflow.md) | Living | Implemented attendance mobile UX and screen behavior |
-| [Bug Report Workflow](./product/25-bug-report-workflow.md) | Living | StayOps product/system issue reporting workflow (1차 구현 2026-06-25) |
+| [Bug Report Workflow](./product/25-bug-report-workflow.md) | Living | Foldy product/system issue reporting workflow (1차 구현 2026-06-25) |
 | [Complaint Workflow](./product/25-complaint-workflow.md) | Living | Customer complaint intake and tracking workflow (모바일 1차 구현) |
 | [Annual Leave Workflow](./product/26-annual-leave-workflow.md) | Living | Annual-leave request, approval, balance, calendar, document, and export workflow |
 | [Permission Override Workflow](./product/27-permission-override-workflow.md) | Living | Time-bound per-user feature permission exceptions |

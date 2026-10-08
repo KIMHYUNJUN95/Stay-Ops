@@ -253,7 +253,7 @@ function addSheet(wb: ExcelJS.Workbook, sheet: AdminTableSheet, input: AdminTabl
 
 export async function buildAdminTableWorkbookBase64(input: AdminTableWorkbookInput): Promise<string> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "StayOps";
+  wb.creator = "Foldy";
   wb.created = new Date();
 
   for (const sheet of input.sheets) {

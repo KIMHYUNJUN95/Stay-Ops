@@ -1,5 +1,5 @@
 /*
- * 채용 콘솔 (/admin/recruit) — 디자인 「StayOps Recruiting Console」(2026-09-09) 구현.
+ * 채용 콘솔 (/admin/recruit) — 디자인 「Foldy Recruiting Console」(2026-09-09) 구현.
  *
  * **변수는 전부 `--rc-*`.** `.adm` 스코프가 클래스는 막아 주지만 CSS 변수는 상속되므로, globals 의
  * Tailwind 토큰과 같은 이름을 여기서 재정의하면 `.adm` 안의 공용 컴포넌트가 조용히 다른 색이 된다

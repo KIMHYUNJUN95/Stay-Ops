@@ -1195,7 +1195,7 @@ show project completions while the other views never see project tasks).
 
 ### 마이그레이션 적용 — 완료 (2026-07-30)
 
-`supabase/migrations/202607300002_task_occurrence_order.sql` 를 원격 프로젝트(StayOps)에 적용
+`supabase/migrations/202607300002_task_occurrence_order.sql` 를 원격 프로젝트(Foldy)에 적용
 완료했다. 검증: 컬럼 6 · 인덱스 3 · RLS 정책 1 · updated_at 트리거 1 · `rowsecurity = true`.
 
 > ⚠️ **여기서 실제로 겪은 일.** 코드를 먼저 배포하고 테이블은 안 만든 상태로 테스트해서, 드래그가

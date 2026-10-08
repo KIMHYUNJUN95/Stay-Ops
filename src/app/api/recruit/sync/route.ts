@@ -21,7 +21,7 @@ import type { Json } from "@/types/database";
  * 이미 돌고 있다고 적어 두었지만, 저장소를 확인하니 **함수가 존재하지 않는다**(`functions/` 없음,
  * `firebase.json` 은 hosting 만). 지원서는 브라우저가 Firestore 에 직접 쓴다
  * (`ApplicationPage.tsx` → `addDoc`). 함수를 새로 만들려면 Firebase Blaze(카드 등록)가 필요해
- * 「무료」 조건과 충돌한다. 그래서 StayOps 가 당겨온다.
+ * 「무료」 조건과 충돌한다. 그래서 Foldy 가 당겨온다.
  *
  * 변환은 `ingestJobApplication` 을 그대로 쓴다 — 웹훅·백필과 **같은 코드**다. 나중에 Cloud Function
  * 을 붙여도 재전송이 안전하므로(유니크 + 지원자 정보만 갱신) 두 경로가 겹쳐도 중복이 생기지 않는다.

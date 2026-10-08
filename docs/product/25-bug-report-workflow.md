@@ -14,7 +14,7 @@ Design note:
 
 ## Purpose
 
-The Bug Report / Problem Report workflow is for reporting issues found while using **StayOps itself**.
+The Bug Report / Problem Report workflow is for reporting issues found while using **Foldy itself**.
 
 This module is for:
 
@@ -36,11 +36,11 @@ Separation:
 
 - `Maintenance` = real-world property/facility issue
 - `Staff Suggestions` = structured internal feedback to a person
-- `Bug Report` = StayOps product/system issue
+- `Bug Report` = Foldy product/system issue
 
 Confirmed scope note:
 
-- this module is specifically for **StayOps app bugs and product issues**
+- this module is specifically for **Foldy app bugs and product issues**
 - it is not a general "problem report" bucket for field operations
 
 ## Core Product Direction
@@ -147,7 +147,7 @@ Important rule:
 ## Core Flow
 
 ```txt
-Member finds a StayOps problem
+Member finds a Foldy problem
 -> submits a bug report (/mobile/bugs/new)
 -> redirected to /mobile/bugs list
 -> reviewer checks and triages via detail screen

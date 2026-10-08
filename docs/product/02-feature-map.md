@@ -310,7 +310,7 @@ Status: 1차 구현 중 (2026-06-25)
 
 Purpose:
 
-- Let staff report problems found while using StayOps itself.
+- Let staff report problems found while using Foldy itself.
 
 Examples:
 

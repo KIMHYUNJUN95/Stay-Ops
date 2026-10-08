@@ -7,7 +7,7 @@ type PageProps = { searchParams: Promise<{ lang?: string }> };
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const locale = await resolvePublicLocale((await searchParams).lang);
-  return { title: `${supportContent[locale].title} · StayOps` };
+  return { title: `${supportContent[locale].title} · Foldy` };
 }
 
 /** 고객지원 — App Store 「지원 URL」. 문의 메일은 로그인 차단 화면과 같은 `NEXT_PUBLIC_SUPPORT_EMAIL`. */
@@ -29,7 +29,7 @@ export default async function SupportPage({ searchParams }: PageProps) {
           {supportEmail ? (
             <a
               className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-[13.5px] font-bold text-primary-foreground"
-              href={`mailto:${supportEmail}?subject=${encodeURIComponent("[StayOps] " + content.title)}`}
+              href={`mailto:${supportEmail}?subject=${encodeURIComponent("[Foldy] " + content.title)}`}
             >
               {t.contactEmailCta}
               <span className="font-semibold opacity-80">{supportEmail}</span>

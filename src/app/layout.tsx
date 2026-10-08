@@ -57,7 +57,7 @@ const notoSansJp = Noto_Sans_JP({
   preload: false,
 });
 
-// Wordmark font — serif italic used for the "Stay Ops" brand mark across all shells.
+// Wordmark font — serif italic used for the "Foldy" brand mark across all shells.
 const notoSerif = Noto_Serif({
   variable: "--font-wordmark",
   subsets: ["latin"],
@@ -66,7 +66,7 @@ const notoSerif = Noto_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "StayOps",
+  title: "Foldy",
   description: "Hotel operations app for field staff and office teams.",
   manifest: "/manifest.webmanifest",
   // Private, invite-only ops app — keep every page out of search indexes.
@@ -85,7 +85,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "StayOps",
+    title: "Foldy",
   },
 };
 

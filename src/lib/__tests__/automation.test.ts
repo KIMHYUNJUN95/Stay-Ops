@@ -311,7 +311,7 @@ describe("취소 · 당일예약 알림", () => {
     expect(JSON.stringify(blocks[1])).toContain("*객실* AA302\\n*채널* Airbnb\\n\\n*숙박* 10/20(화) → 22(목) · 2박\\n\\n*취소 금액* ¥86,400\\n*인원* 3명(아동 1)");
     expect(JSON.stringify(blocks)).not.toContain('"fields"');
     // 버튼이 아니라 링크 줄(우리 Slack 앱은 Interactivity 주소가 없다).
-    expect(JSON.stringify(blocks[3])).toContain("<https://example.test/go/reservation/1|StayOps 에서 열기 ›>");
+    expect(JSON.stringify(blocks[3])).toContain("<https://example.test/go/reservation/1|Foldy 에서 열기 ›>");
     expect(JSON.stringify(blocks)).not.toContain('"button"');
   });
 

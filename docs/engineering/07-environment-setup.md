@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines environment variables and external service setup needed for StayOps.
+This document defines environment variables and external service setup needed for Foldy.
 
 Do not store real secret values in Markdown files.
 
@@ -366,7 +366,7 @@ SLACK_AUTOMATION_<KEY>_WEBHOOK_URL=https://hooks.slack.com/services/…   # KEY 
 - 주소는 화면 · 로그에 나오지 않는다(끝 4자리만). `hooks.slack.com` 이 아니면 「주소 오류」로 표시하고 보내지 않는다.
 - **`SLACK_DAILY_REPORT_WEBHOOK_URL`(업무일지) 과 다른 변수다.** 저쪽 STAY ARI Manager 가 같은 이름을 일일 리포트에 썼지만 우리 쪽은 업무일지 채널이다.
 - 실패 알림 자동화가 꺼져 있거나 받는 곳이 없으면 자동화 실패는 기존 `SLACK_OPS_ALERT_WEBHOOK_URL` 로 간다.
-- 알림의 「StayOps 에서 열기」 링크는 `NEXT_PUBLIC_APP_URL`(없으면 `APP_BASE_URL` → `VERCEL_PROJECT_PRODUCTION_URL`)로 만든다.
+- 알림의 「Foldy 에서 열기」 링크는 `NEXT_PUBLIC_APP_URL`(없으면 `APP_BASE_URL` → `VERCEL_PROJECT_PRODUCTION_URL`)로 만든다.
 
 ## Recruit (채용 지원서 수신)
 
@@ -399,7 +399,7 @@ RECRUIT_FIRESTORE_SERVICE_ACCOUNT=
 주소·국적·비자·이력서가 URL 만 알면 열린다. 그 URL 은 숨겨진 값이 아니다 — `projectId` 와 컬렉션
 이름이 사이트 번들에 문자열로 들어 있고, 개발자도구 Network 탭에도 그대로 보인다.
 
-규칙을 잠그면 그 노출이 닫히는 대신 **StayOps 의 당겨오기도 함께 죽는다.** 그래서 서비스 계정으로
+규칙을 잠그면 그 노출이 닫히는 대신 **Foldy 의 당겨오기도 함께 죽는다.** 그래서 서비스 계정으로
 읽는 경로를 먼저 깔아 둔다.
 
 - 값은 **서비스 계정 JSON 통째로** 넣는다(Firebase 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개

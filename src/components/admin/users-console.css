@@ -1,5 +1,5 @@
 /* ===================================================================
-   StayOps · 사용자 관리 흐름 (list → detail → 권한 예외)
+   Foldy · 사용자 관리 흐름 (list → detail → 권한 예외)
    Ported from the design handoff (flow.css + perm4.css) into the real
    admin console. Every rule is scoped under `.adm` so it lives inside the
    existing AdminShell chrome and reuses its token set. Only `--primary-tint`

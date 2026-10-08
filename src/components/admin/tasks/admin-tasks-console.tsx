@@ -2,7 +2,7 @@
 
 // 어드민 Todoist 콘솔(데스크톱). 모바일 코어 패리티 + 매니저 "업무 지시".
 // 셸(사이드바/탑바)은 AdminShell 이 소유하고, 여기서는 서브내비 + 뷰 + 상세/팝오버/모달을 렌더한다.
-// 디자인: Claude Design "StayOps 투두 (admin)" 이식. CSS: admin-tasks-console.css (.adm 스코프).
+// 디자인: Claude Design "Foldy 투두 (admin)" 이식. CSS: admin-tasks-console.css (.adm 스코프).
 // 서버 액션(@/app/admin/tasks/actions)이 모든 쓰기를 처리하고, revalidatePath + router.refresh() 로 갱신한다.
 // See docs/product/28-admin-todoist-console.md.
 import Image from "next/image";
