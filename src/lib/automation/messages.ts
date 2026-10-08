@@ -499,8 +499,13 @@ export function cleaningStructureKey(model: CleaningListModel): string {
 export type AlertCard = {
   /** Slack `text` — 잠금화면 · 배너 알림 한 줄(카드를 못 그리는 곳). */
   notify: string;
+  /** 제목 — 무슨 일 · **건물만**(객실은 아래 줄, 2026-10-08 사용자 요구). */
   header: string;
-  fields: Array<{ label: string; value: string }>;
+  /**
+   * 본문 줄 — 한 줄에 칸 1 ~ 2개. Slack 폰 앱은 `section.fields` 를 2열이 아니라 **세로 1열로 쌓아** 목록처럼 보였다
+   * (2026-10-08 iPhone 캡처). 그래서 칸 대신 「*이름* 값　*이름* 값」 줄로 — 폰에서도 확실히 나란히, 일본어도 한 줄(약 21자)에 들게.
+   */
+  rows: Array<Array<{ label: string; value: string }>>;
   /** 작은 회색 줄 — 게스트 · 예약 번호 · 취소 시각. */
   context: string;
   link: { url: string; label: string } | null;
@@ -511,6 +516,7 @@ type AlertInput = {
   reservation: AutomationReservation;
   copy: MessageCopy;
   propertyLabel: string;
+  /** 방 코드(청소 명단과 같은 AA302 · K802 · T4 · 308). 오쿠보처럼 건물 = 방이면 빈 문자열 → 객실 칸을 뺀다. */
   roomLabel: string;
   /** 예약 바로가기(`/go/reservation/<id>` — 권한을 보고 판매 캘린더로 보내거나 「권한 없음」). 없으면 링크를 뺀다. */
   openUrl: string | null;
@@ -566,7 +572,8 @@ export function buildReservationAlertCard(input: AlertInput): AlertCard {
   const amount = cancel ? originalAmountOf(reservation.raw, current, reservation.lastKnownAmount) : current;
   const amountText = amount === null ? a.amountUnknown : formatYen(amount);
   const stay = `${reservation.checkIn && reservation.checkIn === today ? `${a.today} ` : ""}${stayRange(copy, reservation.checkIn, reservation.checkOut, today)}`;
-  const header = fill(cancel ? a.cancelHeader : a.sameDayHeader, { property: input.propertyLabel, room: input.roomLabel || "" }).trim();
+  const header = fill(cancel ? a.cancelHeader : a.sameDayHeader, { property: input.propertyLabel }).trim();
+  const room = input.roomLabel.trim();
   const contextParts = [reservation.guestName || "-", fill(a.bookingId, { id: bookingIdOf(reservation.raw, reservation.id) })];
   if (cancel) {
     const instant = cancelInstantOf(reservation.raw, true);
@@ -575,28 +582,31 @@ export function buildReservationAlertCard(input: AlertInput): AlertCard {
       contextParts.push(fill(a.cancelledAt, { time: `${dayLabel(copy, date, today)} ${time}` }));
     }
   }
+  const channel = { label: a.fieldChannel, value: alertPlatformLabel(platformLabel(reservation.raw)) };
+  const amountCell = { label: cancel ? a.fieldCancelAmount : a.fieldAmount, value: amountText };
   return {
     context: contextParts.join(" · "),
-    fields: [
-      { label: a.fieldStay, value: stay },
-      { label: cancel ? a.fieldCancelAmount : a.fieldAmount, value: amountText },
-      { label: a.fieldGuests, value: [guestText, fill(a.nights, { n: nights })].filter(Boolean).join(" · ") },
-      { label: a.fieldChannel, value: alertPlatformLabel(platformLabel(reservation.raw)) },
-    ],
     header,
     link: input.openUrl ? { label: a.open, url: input.openUrl } : null,
-    notify: [header, stayBrief(reservation.checkIn, reservation.checkOut), amountText].filter(Boolean).join(" · "),
+    // 잠금화면 한 줄은 어느 방인지 알 수 있게 건물 + 방 코드를 그대로 둔다.
+    notify: [`${header}${room ? ` ${room}` : ""}`, stayBrief(reservation.checkIn, reservation.checkOut), amountText].filter(Boolean).join(" · "),
+    rows: [
+      room ? [{ label: a.fieldRoom, value: room }, channel] : [channel],
+      [{ label: a.fieldStay, value: `${stay} · ${fill(a.nights, { n: nights })}` }],
+      guestText ? [amountCell, { label: a.fieldGuests, value: guestText }] : [amountCell],
+    ],
   };
+}
+
+function rowLine(row: Array<{ label: string; value: string }>, escape: (value: string) => string, bold: boolean): string {
+  return row.map((cell) => (bold ? `*${escape(cell.label)}* ${escape(cell.value)}` : `${cell.label} ${cell.value}`)).join("　");
 }
 
 /** 카드 → Slack Block Kit. 제목(header) · 2열 칸(section fields) · 회색 줄(context) · 링크 줄. */
 export function alertCardBlocks(card: AlertCard): Array<Record<string, unknown>> {
   const blocks: Array<Record<string, unknown>> = [
     { text: { emoji: true, text: card.header.slice(0, 150), type: "plain_text" }, type: "header" },
-    {
-      fields: card.fields.map((field) => ({ text: `*${escapeMrkdwn(field.label)}*\n${escapeMrkdwn(field.value)}`, type: "mrkdwn" })),
-      type: "section",
-    },
+    { text: { text: card.rows.map((row) => rowLine(row, escapeMrkdwn, true)).join("\n"), type: "mrkdwn" }, type: "section" },
     { elements: [{ text: escapeMrkdwn(card.context), type: "mrkdwn" }], type: "context" },
   ];
   if (card.link) blocks.push({ text: { text: `*<${card.link.url}|${escapeMrkdwn(card.link.label)} ›>*`, type: "mrkdwn" }, type: "section" });
@@ -607,7 +617,7 @@ export function alertCardBlocks(card: AlertCard): Array<Record<string, unknown>>
 export function alertCardText(card: AlertCard): string {
   return [
     card.header,
-    ...card.fields.map((field) => `${field.label}: ${field.value}`),
+    ...card.rows.map((row) => rowLine(row, (value) => value, false)),
     card.context,
     ...(card.link ? [`${card.link.label}: ${card.link.url}`] : []),
   ].join("\n");

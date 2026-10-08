@@ -290,21 +290,22 @@ describe("취소 · 당일예약 알림", () => {
       openUrl: "https://example.test/go/reservation/1",
       propertyLabel: "아라키초A",
       reservation: reservation({ status: "cancelled", raw: { bookId: "777", cancelTime: "2026-10-06T00:41:00Z", numAdult: 2, numChild: 1, price: 86400, referer: "Airbnb" } }),
-      roomLabel: "302",
+      roomLabel: "AA302",
       today: "2026-10-06",
     });
-    expect(card.header).toBe("❌ 취소 · 아라키초A 302");
-    expect(card.fields).toEqual([
-      { label: "숙박", value: "10/20(화) → 22(목)" },
-      { label: "취소 금액", value: "¥86,400" },
-      { label: "인원 · 박", value: "3명(아동 1) · 2박" },
-      { label: "채널", value: "Airbnb" },
+    // 제목은 건물만, 객실은 아래 줄(2026-10-08). 폰에서 칸이 세로로 쌓이지 않게 한 줄에 두 칸.
+    expect(card.header).toBe("❌ 취소 · 아라키초A");
+    expect(card.rows).toEqual([
+      [{ label: "객실", value: "AA302" }, { label: "채널", value: "Airbnb" }],
+      [{ label: "숙박", value: "10/20(화) → 22(목) · 2박" }],
+      [{ label: "취소 금액", value: "¥86,400" }, { label: "인원", value: "3명(아동 1)" }],
     ]);
     expect(card.context).toBe("Kim · 예약 777 · 취소 10/6(화) 09:41");
-    expect(card.notify).toBe("❌ 취소 · 아라키초A 302 · 10/20~22 · ¥86,400");
+    expect(card.notify).toBe("❌ 취소 · 아라키초A AA302 · 10/20~22 · ¥86,400");
     const blocks = alertCardBlocks(card);
     expect(blocks.map((block) => block.type)).toEqual(["header", "section", "context", "section"]);
-    expect(JSON.stringify(blocks[1])).toContain("*취소 금액*\\n¥86,400");
+    expect(JSON.stringify(blocks[1])).toContain("*객실* AA302　*채널* Airbnb\\n*숙박* 10/20(화) → 22(목) · 2박\\n*취소 금액* ¥86,400　*인원* 3명(아동 1)");
+    expect(JSON.stringify(blocks)).not.toContain('"fields"');
     // 버튼이 아니라 링크 줄(우리 Slack 앱은 Interactivity 주소가 없다).
     expect(JSON.stringify(blocks[3])).toContain("<https://example.test/go/reservation/1|StayOps 에서 열기 ›>");
     expect(JSON.stringify(blocks)).not.toContain('"button"');
@@ -320,10 +321,13 @@ describe("취소 · 당일예약 알림", () => {
       roomLabel: "305",
       today: "2026-09-30",
     });
-    expect(sameDay.header).toBe("🟢 当日予約 · STAY ARI Apartment Hotel 305");
-    expect(sameDay.fields[0]).toEqual({ label: "宿泊", value: "本日 9/30(水) → 10/2(金)" });
-    expect(sameDay.fields[1]).toEqual({ label: "金額", value: "¥23,413" });
+    expect(sameDay.header).toBe("🟢 当日予約 · STAY ARI Apartment Hotel");
+    expect(sameDay.rows[0]).toEqual([{ label: "客室", value: "305" }, { label: "チャネル", value: "Booking" }]);
+    expect(sameDay.rows[1]).toEqual([{ label: "宿泊", value: "本日 9/30(水) → 10/2(金) · 2泊" }]);
+    expect(sameDay.rows[2]).toEqual([{ label: "金額", value: "¥23,413" }, { label: "人数", value: "4名" }]);
     expect(sameDay.notify).toBe("🟢 当日予約 · STAY ARI Apartment Hotel 305 · 9/30~10/2 · ¥23,413");
+    // 일본어도 폰 한 줄(약 21자)에 — 줄마다 칸 이름 · 값 합이 짧다.
+    for (const row of sameDay.rows) expect(row.map((cell) => `${cell.label} ${cell.value}`).join("　").length).toBeLessThanOrEqual(30);
     expect(sameDay.link).toBeNull();
     const blocks = alertCardBlocks(sameDay);
     expect(blocks).toHaveLength(3);
@@ -337,9 +341,21 @@ describe("취소 · 당일예약 알림", () => {
       roomLabel: "206",
       today: "2026-09-29",
     });
-    expect(cancelled.fields[0].value).toBe("2027/2/4(목) → 8(월)");
-    expect(cancelled.fields[1]).toEqual({ label: "취소 금액", value: "확인 불가" });
-    expect(cancelled.fields[3].value).toBe("Booking");
+    expect(cancelled.rows[1][0].value).toBe("2027/2/4(목) → 8(월) · 4박");
+    expect(cancelled.rows[2]).toEqual([{ label: "취소 금액", value: "확인 불가" }]);
+    expect(cancelled.rows[0][1].value).toBe("Booking");
+    // 오쿠보처럼 방 코드가 없으면 객실 칸을 뺀다.
+    const okubo = buildReservationAlertCard({
+      copy: dictionaries.ko.automationMessages,
+      kind: "same_day",
+      openUrl: null,
+      propertyLabel: "오쿠보A",
+      reservation: reservation({ raw: { id: "1", price: 1000, referer: "Airbnb" } }),
+      roomLabel: "",
+      today: "2026-10-20",
+    });
+    expect(okubo.rows[0]).toEqual([{ label: "채널", value: "Airbnb" }]);
+    expect(okubo.notify.startsWith("🟢 당일 예약 · 오쿠보A · ")).toBe(true);
     expect(alertPlatformLabel("Airbnb")).toBe("Airbnb");
     expect(alertPlatformLabel("booking.com")).toBe("Booking");
   });
@@ -375,7 +391,7 @@ describe("취소된 예약의 원래 금액", () => {
       roomLabel: "201",
       today: "2026-10-05",
     });
-    expect(card.fields[1]).toEqual({ label: "취소 금액", value: "¥245,532" });
+    expect(card.rows[2][0]).toEqual({ label: "취소 금액", value: "¥245,532" });
     expect(card.notify).toContain("¥245,532");
     const stats = computeDailyStats({
       buildingOrder: AUTOMATION_BUILDING_ORDER,

@@ -430,10 +430,13 @@ function PreviewPane({
               <div className="atm__card">
                 <div className="atm__cardh">{card.header}</div>
                 <div className="atm__cardf">
-                  {card.fields.map((field) => (
-                    <div key={field.label}>
-                      <b>{field.label}</b>
-                      <span>{field.value}</span>
+                  {card.rows.map((row, index) => (
+                    <div key={index}>
+                      {row.map((cell) => (
+                        <span key={cell.label}>
+                          <b>{cell.label}</b> {cell.value}
+                        </span>
+                      ))}
                     </div>
                   ))}
                 </div>

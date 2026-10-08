@@ -7,6 +7,7 @@ import { reservationShortcutPath } from "@/lib/reservation-shortcut";
 import {
   AUTOMATION_BUILDING_ORDER,
   checkReservationGate,
+  cleaningRoomCode,
   loadAssignees,
   loadCleaningListModel,
   loadDailyReportReservations,
@@ -452,7 +453,8 @@ async function buildAlert(
 ): Promise<{ card: AlertCard; text: string; slack: SlackPayload }> {
   const label = labeler ?? (await loadPropertyLabeler(supabase, organizationId));
   const canonical = getCanonicalPropertyName(reservation.propertyName);
-  const room = getDisplayRoomLabel(canonical, getCanonicalRoomLabel(canonical, reservation.roomLabel));
+  // 방 코드 — 청소 명단과 같은 이름(AA302 · K802 · T4 · 308). 오쿠보처럼 건물 = 방이면 없음(객실 칸을 뺀다).
+  const room = cleaningRoomCode(canonical, getDisplayRoomLabel(canonical, getCanonicalRoomLabel(canonical, reservation.roomLabel))) ?? "";
   const base = appBaseUrl();
   const card = buildReservationAlertCard({
     copy: getDictionary(locale).automationMessages,
