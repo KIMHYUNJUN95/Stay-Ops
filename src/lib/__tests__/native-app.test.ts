@@ -20,5 +20,11 @@ describe("nativeCallbackToWebPath", () => {
     expect(nativeCallbackToWebPath("com.harutokyo.stayops://other/path?code=abc")).toBeNull();
     expect(nativeCallbackToWebPath("evil.app://auth/callback?code=abc")).toBeNull();
     expect(nativeCallbackToWebPath("not a url")).toBeNull();
+    expect(nativeCallbackToWebPath(`${NATIVE_AUTH_CALLBACK}extra?code=abc`)).toBeNull();
+  });
+
+  it("쿼리 없는 주소와 조각(#)도 처리한다 — 예전 WebView 의 URL 파싱에 기대지 않는다", () => {
+    expect(nativeCallbackToWebPath(NATIVE_AUTH_CALLBACK)).toBe("/auth/callback");
+    expect(nativeCallbackToWebPath(`${NATIVE_AUTH_CALLBACK}?code=abc#frag`)).toBe("/auth/callback?code=abc");
   });
 });

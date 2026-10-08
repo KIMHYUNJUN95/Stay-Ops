@@ -24,15 +24,19 @@ export function isNativeApp(): boolean {
   return Boolean(cap?.isNativePlatform?.());
 }
 
-/** `com.harutokyo.stayops://auth/callback?...` 이면 웹 콜백 경로(`/auth/callback?...`)를, 아니면 null. */
+/**
+ * `com.harutokyo.stayops://auth/callback?...` 이면 웹 콜백 경로(`/auth/callback?...`)를, 아니면 null.
+ *
+ * `new URL()` 로 나누지 않고 **문자열로** 본다(2026-10-08, N10). 예전 Chromium WebView(에뮬레이터 API 35 기본값 등)는 커스텀
+ * 스킴 주소에서 host 를 나누지 않아 `//auth/callback` 전체를 pathname 으로 읽었다 — 그래서 판정이 늘 null 이 되어 Google
+ * 로그인 코드가 조용히 버려지고 앱이 로그인 화면에 머물렀다. Node(테스트)에서는 재현되지 않는다.
+ */
 export function nativeCallbackToWebPath(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== `${NATIVE_APP_SCHEME}:`) return null;
-    // 커스텀 스킴은 `//auth/callback` 의 auth 가 host, /callback 이 pathname 으로 읽힌다.
-    if (parsed.host !== "auth" || parsed.pathname !== "/callback") return null;
-    return `/auth/callback${parsed.search}`;
-  } catch {
-    return null;
-  }
+  const prefix = `${NATIVE_APP_SCHEME}://auth/callback`;
+  if (typeof url !== "string" || !url.startsWith(prefix)) return null;
+  const rest = url.slice(prefix.length);
+  // `/auth/callbackX` 같은 다른 경로는 거른다 — 바로 뒤는 비었거나 쿼리 · 조각만 허용.
+  if (rest !== "" && !rest.startsWith("?") && !rest.startsWith("#")) return null;
+  const query = rest.split("#")[0];
+  return `/auth/callback${query}`;
 }

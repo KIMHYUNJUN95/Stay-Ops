@@ -157,6 +157,8 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
   Supabase 가 Site URL 로 돌려보냈다(auth 로그의 `referer` 가 `https://stay-ops-two.vercel.app`). Chrome 에 이미 웹 로그인이 있어서
   **앱 안 브라우저(Custom Tab) 안에서 로그인된 웹이 열려** 앱에 들어간 것처럼 보였다 — 위쪽에 주소 · X · 공유 버튼이 있으면 앱이 아니다.
   지금은 쿼리 없이 보내고, 콜백이 기기 기본 경로(`/mobile`)로 보낸다.
+- **앱 복귀 주소는 문자열로 판정한다**(`nativeCallbackToWebPath`). 예전 Chromium WebView 는 `com.harutokyo.stayops://auth/callback` 에서
+  host 를 나누지 않아(`//auth/callback` 이 통째로 pathname) `new URL()` 판정이 늘 실패했고, 로그인 코드가 조용히 버려졌다(2026-10-08).
 - 회원가입 확인 · 비밀번호 재설정 **메일 링크**는 아직 브라우저에서 열린다(앱으로 열려면 Universal Links / App Links — 계획 C2).
 
 ### 앱 안 WebView 보정 (B3, 2026-10-06)
