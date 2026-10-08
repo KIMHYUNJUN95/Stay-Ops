@@ -437,7 +437,8 @@ function grouped(
     const list = groups.get(name);
     if (!list || list.length === 0) continue;
     if (out.length > 0) out.push("");
-    out.push(propertyLabel(name));
+    // 건물 이름은 굵게(2026-10-08 사용자 요구) — 폰에서 건물 묶음이 바로 눈에 띄게.
+    out.push(`*${propertyLabel(name)}*`);
     for (const room of [...list].sort((a, b) => a.code.localeCompare(b.code, "ko", { numeric: true }))) {
       out.push(roomLine(copy, room, names));
     }

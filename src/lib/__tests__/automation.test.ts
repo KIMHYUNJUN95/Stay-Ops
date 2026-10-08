@@ -207,6 +207,9 @@ describe("청소 · 셋팅 명단", () => {
     expect(text).toContain("*AA302* | 체크인 X (3)\n");
     expect(text).not.toContain("미배정");
     expect(text).toContain("*셋팅해야 하는 객실*");
+    // 건물 이름은 굵게(2026-10-08).
+    expect(text).toContain("\n*아라키초A*\n*AA201* | Tanaka (2) | 김민지");
+    expect(text).toContain("\n*가부키초*\n*K802* | Garcia (2)");
   });
 
   // 2026-10-07 — 「청소 방 직접 추가」 · 데이터 경고 · 정정본은 현장 일이 바뀔 때만.
