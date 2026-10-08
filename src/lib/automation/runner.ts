@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { postToAutomationChannel } from "@/lib/automation/channels";
+import { collectHealthAlerts, type HealthAlert } from "@/lib/automation/health";
 import { reservationShortcutPath } from "@/lib/reservation-shortcut";
 import {
   AUTOMATION_BUILDING_ORDER,
@@ -29,6 +30,7 @@ import {
   alertCardText,
   automationBuildingLabel,
   buildCleaningListMessage,
+  buildHealthAlertText,
   buildDailyReportMessage,
   buildReservationAlertCard,
   cleaningStructureKey,
@@ -313,6 +315,73 @@ export async function notifyAutomationFailure(
   } catch (error) {
     console.error("[automation] failure alert failed", error instanceof Error ? error.message : error);
   }
+}
+
+// ── 시스템 경보(2026-10-08) ───────────────────────────────────────────────
+
+/**
+ * 시스템 경보 한 건 — 「실패 알림」 받는 곳으로(언어마다), 없으면 기존 운영 경보 채널. **사건 키당 한 번만**
+ * (`automation_runs.dedupe_key = system:<key>:…`) — 같은 문제를 10분마다 다시 보내지 않는다. 받는 곳이 없어 아무 데도 못 보냈으면
+ * 기록도 남기지 않는다 — 나중에 채널을 연결하면 아직 계속되는 문제는 그때 한 번 나간다.
+ */
+async function sendSystemAlert(supabase: Client, organizationId: string, alert: HealthAlert, now: Date): Promise<"sent" | "duplicate" | "failed" | "no_route"> {
+  const today = tokyoClock(now).date;
+  const [jobs, destinations] = await Promise.all([loadJobs(supabase, organizationId), loadDestinations(supabase, organizationId)]);
+  const job = jobs.failure_alert;
+  const targets = destinations.failure_alert;
+  if (job.enabled && targets.length > 0) {
+    let result: "sent" | "duplicate" | "failed" = "duplicate";
+    for (const destination of targets) {
+      for (const locale of destination.locales) {
+        const text = buildHealthAlertText(getDictionary(locale).automationMessages, alert, today);
+        const sent = await deliver(supabase, {
+          dedupeKey: `system:${alert.key}:${destination.channelKey}:${locale}`,
+          destination,
+          jobKey: "failure_alert",
+          locale,
+          meta: { health: alert.kind },
+          organizationId,
+          targetDate: null,
+          text,
+          trigger: "event",
+        });
+        if (sent === "sent") result = "sent";
+        else if (sent === "failed" && result !== "sent") result = "failed";
+      }
+    }
+    return result;
+  }
+  // 기존 운영 경보 채널(SLACK_OPS_ALERT_WEBHOOK_URL) — 설정돼 있을 때만, 같은 사건은 한 번(줄을 먼저 잡는다).
+  if (!process.env.SLACK_OPS_ALERT_WEBHOOK_URL?.trim()) return "no_route";
+  const claimed = await supabase
+    .from("automation_runs")
+    .insert({ dedupe_key: `system:${alert.key}:ops`, job_key: "failure_alert", meta: { health: alert.kind } as Json, organization_id: organizationId, reason: "sending", status: "failed", trigger: "event" })
+    .select("id")
+    .single();
+  if (claimed.error) return claimed.error.code === "23505" ? "duplicate" : "failed";
+  const text = buildHealthAlertText(getDictionary("ko").automationMessages, alert, today);
+  const posted = await postSlackText(text);
+  await supabase
+    .from("automation_runs")
+    .update(posted.ok ? { message: text, reason: null, status: "sent" } : { message: text, reason: posted.reason, status: "failed" })
+    .eq("id", claimed.data.id);
+  return posted.ok ? "sent" : "failed";
+}
+
+/** 시스템 경보 점검 주기 — 1분 틱 중 10분마다(pg 함수도 이 분에 틱을 깨운다 — 202610080001). */
+const HEALTH_EVERY_MINUTES = 10;
+
+async function runHealthChecks(supabase: Client, organizationIds: string[], now: Date): Promise<string> {
+  let sent = 0;
+  for (const organizationId of organizationIds) {
+    try {
+      const alerts = await collectHealthAlerts(supabase, organizationId, now);
+      for (const alert of alerts) if ((await sendSystemAlert(supabase, organizationId, alert, now)) === "sent") sent += 1;
+    } catch (error) {
+      console.error("[automation] health check failed", error instanceof Error ? error.message : error);
+    }
+  }
+  return `health:${sent}`;
 }
 
 // ── 메시지 만들기(미리보기와 발송이 같은 함수) ───────────────────────────────
@@ -846,6 +915,10 @@ export async function runAutomationTick(supabase: Client, now = new Date()): Pro
     await releaseStuckClaims(supabase, now);
     const rows = await supabase.from("automation_jobs").select("*").eq("enabled", true);
     if (rows.error) throw new Error(rows.error.message);
+    if (tokyoClock(now).minutes % HEALTH_EVERY_MINUTES === 0) {
+      const organizationIds = [...new Set((rows.data ?? []).map((row) => row.organization_id))];
+      results.push({ jobKey: "system_health", organizationId: organizationIds.join(","), result: await runHealthChecks(supabase, organizationIds, now) });
+    }
     for (const row of rows.data ?? []) {
       const job = toStoredJob(row);
       const organizationId = row.organization_id;

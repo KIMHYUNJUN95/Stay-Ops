@@ -15,6 +15,7 @@
  * 저쪽대로(`automationBuildingLabel`), 스테이아리 방은 숫자만, 알림 금액은 0원도 `¥0`, 플랫폼 `Booking`.
  */
 
+import type { HealthAlert } from "@/lib/automation/health";
 import type { Dictionary } from "@/lib/i18n";
 import { legacyReservationAmount } from "@/lib/ops-sales-summary";
 import { tokyoDateOf, ymdShift } from "@/lib/tokyo-date";
@@ -668,4 +669,40 @@ export function isFreshCancellation(reservation: AutomationReservation, sinceIso
   if (!instant) return false;
   const at = Date.parse(instant);
   return Number.isFinite(at) && at >= Date.parse(sinceIso);
+}
+
+// ── 시스템 경보(2026-10-08) ───────────────────────────────────────────────
+
+/**
+ * 시스템 경보 문장 — 제목 한 줄 + 사람이 바로 할 일. 기술 키(`job=…`)가 아니라 무엇이 문제고 어디를 볼지를 쓴다.
+ * 문구 줄은 사전에서 「|」 로 나눈다(빈 줄은 뺀다 — 오류 메시지가 없을 때 등).
+ */
+export function buildHealthAlertText(copy: MessageCopy, alert: HealthAlert, today: string | null): string {
+  const h = copy.health;
+  const at = (iso: string | null) => {
+    if (!iso) return "-";
+    const label = tokyoDateTimeLabel(iso);
+    return `${dayLabel(copy, label.slice(0, 10), today)} ${label.slice(11, 16)}`;
+  };
+  const pick = (): { title: string; lines: string } => {
+    switch (alert.kind) {
+      case "webhook_silent":
+        return { lines: fill(h.webhookSilentLines, { time: at(alert.lastAt) }), title: fill(h.webhookSilent, { hours: alert.hours }) };
+      case "reconcile_stale":
+        return { lines: fill(h.reconcileStaleLines, { time: at(alert.lastAt) }), title: fill(h.reconcileStale, { hours: alert.hours ?? "-" }) };
+      case "reconcile_failed":
+        return { lines: fill(h.reconcileFailedLines, { error: alert.error, time: at(alert.at) }), title: h.reconcileFailed };
+      case "price_failed":
+        return {
+          lines: fill(h.priceFailedLines, { by: alert.requestedBy, error: alert.error, n: alert.failedRooms, time: at(alert.at) }),
+          title: h.priceFailed,
+        };
+      case "price_stuck":
+        return { lines: fill(h.priceStuckLines, { status: alert.status, time: at(alert.at) }), title: fill(h.priceStuck, { minutes: alert.minutes }) };
+      case "reviews_stale":
+        return { lines: fill(h.reviewsStaleLines, { time: at(alert.lastAt) }), title: fill(h.reviewsStale, { days: alert.days }) };
+    }
+  };
+  const { title, lines } = pick();
+  return [fill(h.title, { title }), ...lines.split("|").map((line) => line.trim()).filter(Boolean)].join("\n");
 }
