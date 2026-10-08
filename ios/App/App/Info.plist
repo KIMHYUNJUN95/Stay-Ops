@@ -17,6 +17,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Foldy uses the camera to scan the attendance QR code and to take photos you attach to work records such as maintenance and lost &amp; found reports.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

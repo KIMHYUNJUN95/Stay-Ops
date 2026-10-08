@@ -16,6 +16,7 @@ import { blockBoardUser, reportBoardContent } from "../moderation-actions";
 import type { ComposerSubmitPayload } from "@/components/board/board-composer";
 import type { MentionableMember } from "@/app/mobile/board/[id]/actions";
 import { ALL_TOKEN } from "@/lib/board-mention-utils";
+import { shareLink } from "@/lib/share-link";
 import type { BoardPostDetail } from "@/components/board/board-types";
 import type { Dictionary, Locale } from "@/lib/i18n";
 import {
@@ -265,21 +266,9 @@ export function BoardDetailClient({
     setShowActionSheet(false);
     const url = `${window.location.origin}/mobile/board/${post.id}`;
     const title = post.title ?? post.content.slice(0, 40);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      flashToast(copy.shareCopied);
-    } catch {
-      try {
-        await navigator.clipboard.writeText(url);
-        flashToast(copy.shareCopied);
-      } catch {
-        flashToast(copy.shareFailed);
-      }
-    }
+    const result = await shareLink({ title, url });
+    if (result === "copied") flashToast(copy.shareCopied);
+    else if (result === "failed") flashToast(copy.shareFailed);
   }
 
   function onConfirmDelete() {

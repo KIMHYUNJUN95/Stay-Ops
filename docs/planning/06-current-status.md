@@ -9,6 +9,16 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-09 — 앱 출시 보강 (H1~H13 · N13~N16)
+
+- 출시 전 기술 점검에서 찾은 공백을 모두 수정(17번 「출시 보강 목록」, 03번 「앱 출시 보강」 · 「Android 릴리스 서명」).
+- iOS 최소 16.4 · 낡은 브라우저/WebView 안내 · 웹 · 앱 버전 어긋남 대비(`hasNativePlugin` · `MIN_NATIVE_BUILD` 업데이트 화면, 빌드 번호 2) ·
+  앱에서 서비스 워커 끔 · 앱은 늘 모바일 화면(`StayOpsApp` UA) · 키보드 막대 숨김 · 네이티브 진동 · 공유 시트 · 글자 크기 0.85~1.15 배 ·
+  Android 백업 끔 · iOS 수출 규정 키 · 릴리스 서명 설정 · 화면 오류 수집(`/api/client-errors` → Vercel 로그).
+- 오류 화면(`error.tsx` · `global-error.tsx`)을 3개 언어 + 오프라인 자동 복귀로 — 아이폰 비행기 모드 「영어만 나오고 안 눌림」(N6)의 원인으로 보임.
+- 개인정보처리방침 「오류 진단 정보」 · iOS `PrivacyInfo` · 스토어 개인정보 답안(18번)에 진단 데이터(계정과 연결 안 됨) 추가.
+- 남은 확인: 앱 재설치 후 에뮬레이터(키보드 · 공유 · 글자 크기 · 오프라인) · 아이폰(N6 · N13) · 업로드 키 생성(👤).
+
 ## 2026-10-09 — 일반 예약 캘린더: 놓친 변경 따라잡기
 
 - 모바일 예약 캘린더(`/mobile/calendar`)의 Beds24 실시간 구독을 판매 캘린더와 같은 공용 `useBeds24LiveRefresh` 로 — 연결이 끊겼다 다시

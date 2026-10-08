@@ -3,7 +3,8 @@
 <!--
   Foldy 앱 개인정보 매니페스트 (계획 C6, docs/planning/17-app-release-plan.md).
   수집 항목은 src/lib/legal-content.ts 「수집하는 정보」와 같아야 한다 — 그쪽이 바뀌면 여기와 App Store 개인정보 라벨을 같이 고친다.
-  추적 없음 · 광고 없음. 모든 항목 = 계정에 연결(Linked), 목적 = 앱 기능(App Functionality).
+  추적 없음 · 광고 없음. 아래 항목 = 계정에 연결(Linked), 목적 = 앱 기능(App Functionality).
+  예외: 오류 진단(CrashData · OtherDiagnosticData, 2026-10-09 /api/client-errors) = 계정에 연결 안 됨, 목적 = 앱 기능.
   Required Reason API: 앱 코드(AppDelegate · SceneDelegate)는 쓰지 않는다. Capacitor 와 플러그인은 각자 매니페스트를 포함한다.
 -->
 <plist version="1.0">
@@ -117,6 +118,30 @@
 			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>

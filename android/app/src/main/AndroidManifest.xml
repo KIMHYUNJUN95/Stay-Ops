@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 백업 끔(2026-10-09): 앱 데이터에는 WebView 로그인 쿠키가 있다. 클라우드 백업 · 기기 이전으로 다른 기기에 로그인 상태가 복원되지 않게
+         allowBackup=false(Android 11 이하) + dataExtractionRules(12 이상, 클라우드 · 기기 이전 모두 제외). 새 기기에서는 다시 로그인한다. -->
+
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

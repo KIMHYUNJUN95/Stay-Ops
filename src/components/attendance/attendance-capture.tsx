@@ -32,7 +32,7 @@ import {
 } from "@/app/mobile/attendance/actions";
 import { extractAttendanceToken } from "@/lib/attendance-qr";
 import { getDictionary, type Dictionary } from "@/lib/i18n";
-import { isNativeApp } from "@/lib/native-app";
+import { hasNativePlugin } from "@/lib/native-app";
 
 type AttendanceCopy = Dictionary["attendance"];
 
@@ -69,7 +69,8 @@ async function getNativeGpsOnce(): Promise<Gps> {
 }
 
 function getGpsOnce(): Promise<Gps> {
-  if (isNativeApp()) return getNativeGpsOnce();
+  // 위치 플러그인이 없는 옛 설치본이면 웹 방식으로(웹 · 앱 버전 어긋남 — `hasNativePlugin`).
+  if (hasNativePlugin("Geolocation")) return getNativeGpsOnce();
   return new Promise((resolve) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       resolve({ error: "unavailable" });

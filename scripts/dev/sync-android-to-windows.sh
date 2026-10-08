@@ -19,9 +19,10 @@ cd "$ROOT"
 npx cap sync android >/dev/null
 
 mkdir -p "$DEST/node_modules/@capacitor"
-# 빌드 산출물 · IDE 상태 · Windows 쪽 sdk 경로(local.properties)는 덮어쓰지 않는다.
+# 빌드 산출물 · IDE 상태 · Windows 쪽 sdk 경로(local.properties) · 릴리스 서명 설정(keystore.properties · 키 파일)은 덮어쓰거나 지우지 않는다.
 rsync -a --delete \
   --exclude '.gradle/' --exclude '.idea/' --exclude 'build/' --exclude 'app/build/' --exclude 'local.properties' \
+  --exclude 'keystore.properties' --exclude '*.jks' --exclude '*.keystore' \
   android/ "$DEST/android/"
 
 # capacitor.settings.gradle 이 참조하는 플러그인 패키지만 복사

@@ -1,5 +1,7 @@
+// `StayOpsApp` = iOS · Android 앱의 UA 꼬리표(`capacitor.config.ts` appendUserAgent · `NATIVE_APP_UA_TAG`). 아이패드 앱은 Mac UA 를
+// 보내므로 꼬리표로 모바일 화면을 고정한다 — 앱은 관리 콘솔(엑셀 · PDF 내보내기 · 인쇄)을 열지 않는다(2026-10-09).
 const MOBILE_DEVICE_UA =
-  /Mobi|Android|iPhone|iPad|iPod|IEMobile|Windows Phone|webOS|BlackBerry|KAKAOTALK|Line\/|FB_IAB|FBAN|FBAV|Instagram|Twitter|NAVER/i;
+  /Mobi|Android|iPhone|iPad|iPod|IEMobile|Windows Phone|webOS|BlackBerry|KAKAOTALK|Line\/|FB_IAB|FBAN|FBAV|Instagram|Twitter|NAVER|StayOpsApp/i;
 
 const DESKTOP_UA = /Windows NT|Macintosh|X11.*Linux.*(?!Android)/i;
 

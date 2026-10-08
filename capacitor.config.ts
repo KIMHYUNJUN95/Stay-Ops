@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from "@capacitor/cli";
+import { KeyboardResize } from "@capacitor/keyboard";
 
 /**
  * iOS · Android 앱 껍데기 (Capacitor, 2026-10-06 결정 — docs/planning/01-decision-log.md).
@@ -18,6 +19,9 @@ const config: CapacitorConfig = {
   webDir: "capacitor-www",
   // 웹이 그려지기 전 WebView 바탕 — 기본 흰색이면 시작 화면(아이보리) → 흰 화면 → 웹(아이보리)으로 깜빡인다(N11).
   backgroundColor: "#F7F4EE",
+  // 서버가 「앱」임을 알도록 UA 끝에 붙인다 — `src/lib/native-app.ts` NATIVE_APP_UA_TAG 와 같아야 한다. 아이패드 앱은 Mac UA 를 보내
+  // 관리 콘솔로 갈 수 있었다. 꼬리표가 있으면 늘 모바일 화면(`src/lib/mobile-device.ts`).
+  appendUserAgent: "StayOpsApp",
   server: {
     url: serverUrl,
     cleartext: false,
@@ -42,6 +46,14 @@ const config: CapacitorConfig = {
       initialViewportFitValueHint: "cover",
       // 웹은 늘 밝은 아이보리 화면이다 → 상태바 아이콘은 어둡게(LIGHT = 밝은 바탕용). 기기 다크 모드여도 앱 화면은 밝으므로 따라가지 않는다(N1).
       style: "LIGHT",
+    },
+    // 키보드(2026-10-09). iOS: `none` = WebView 크기를 바꾸지 않는다 — 웹은 iOS Safari 처럼 visualViewport 로 키보드를 처리하도록
+    // 맞춰져 있다(KeyboardInsetSync). 키보드 뒤 바탕은 앱 바탕색. 입력칸 위 「‹ › 완료」 막대는 NativeShellBridge 에서 숨긴다.
+    // Android: edge-to-edge(전체 화면)에서는 키보드가 WebView 를 줄이지 않아 입력칸을 가리는 버그가 있어 우회를 켠다.
+    Keyboard: {
+      resize: KeyboardResize.None,
+      autoBackdropColor: "auto",
+      resizeOnFullScreen: true,
     },
   },
 };

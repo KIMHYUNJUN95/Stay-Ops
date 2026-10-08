@@ -185,7 +185,7 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 - 위치(N2, 2026-10-08): 앱에서는 `navigator.geolocation` 대신 **`@capacitor/geolocation`** 으로 읽는다(`attendance-capture.tsx`
   `getNativeGpsOnce`). WebView 의 웹 위치 요청은 OS 권한과 별도로 「stay-ops-two.vercel.app wants to use your device's location」
   웹 팝업을 띄웠다(iOS 는 앱을 켤 때마다). 브라우저 · PWA 는 그대로 Geolocation API.
-- 남은 확인: 서비스 워커(iOS WKWebView 는 App-Bound Domains 없이는 등록 안 됨 — 오프라인 대체 화면은 `capacitor-www`), 실기기 확인(B1-1).
+- 서비스 워커는 앱에서 **쓰지 않는다**(2026-10-09, 아래 「앱 출시 보강」). 오프라인 대체 화면은 `capacitor-www`. 실기기 확인(B1-1).
 
 ### Android 첫 실행 (Windows + Android Studio, Mac 없음)
 
@@ -217,6 +217,73 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 - 정적 파일이라 `i18n.ts` 를 못 쓴다 → 파일 안 `COPY` 에 ko/ja/en 을 두고 기기 언어로 하나만 보여 준다(없으면 영어).
 - **`APP_URL` 은 `capacitor.config.ts` 의 기본 `serverUrl` 과 같아야 한다** — 자체 도메인 교체(C1) 때 두 곳을 같이 고친다.
 - 확인(B1-1): 앱을 켠 상태에서 비행기 모드 → 다른 화면으로 이동 / 앱 재시작 → 이 화면이 뜨는지, 비행기 모드 해제 → 자동 복귀.
+
+### 앱 출시 보강 (2026-10-09)
+
+출시 전 점검에서 찾은 기술 공백을 한 번에 메웠다(17번 「출시 보강 목록」 H1~H13). 플러그인 · 네이티브 설정이 바뀌었으므로 **`npm run cap:android:win` → ▶ Run 재설치**가 필요하다.
+
+**지원 범위 · 낡은 엔진**
+- Next.js 16 최소 엔진 = **Chrome 111 · Safari 16.4**. iOS 앱 최소 버전을 15.0 → **16.4**(`IPHONEOS_DEPLOYMENT_TARGET`). 15.x 아이폰에서는 웹이
+  돌지 않아 빈 화면이 됐을 것이다. Android 는 minSdk 24(Android 7) 그대로 — 대신 **WebView 가 Chrome 111 보다 낡았으면** 업데이트 안내를 띄운다.
+- 안내: `src/lib/outdated-engine-guard.ts` — 루트 레이아웃 `<head>` 맨 앞의 ES5 인라인 스크립트(Next 런타임이 못 도는 엔진에서도 실행).
+  앱(Android WebView) = 「Android System WebView 를 Play 스토어에서 업데이트」 + 버튼(`market://details?id=com.google.android.webview`),
+  브라우저 · PWA = 「브라우저 · OS 업데이트」. 문구 `dictionary.appShell.outdated*`(서버가 문서 언어로 골라 넣음). 판정 함수는 테스트와 실제 스크립트가 같은 코드.
+
+**웹 · 앱 버전 어긋남**
+- 앱은 배포된 웹을 띄우므로 **웹 배포는 이미 깔린 모든 앱 버전에 즉시 들어간다.** 새 웹이 옛 설치본에 없는 플러그인을 부르면 동작이 끊긴다.
+- 규칙 1: 네이티브 플러그인은 **반드시 `hasNativePlugin(이름)`(`src/lib/native-app.ts`)으로 거르고, 없으면 웹 방식으로** 동작한다
+  (위치 · 진동 · 공유 · 키보드 · 글자 크기 · 앱 안 브라우저 적용).
+- 규칙 2: 웹 방식 대체가 불가능한 변경이면 `MIN_NATIVE_BUILD` 를 올린다 → 그보다 낮은 빌드에는 `NativeUpdateGate` 가 「Foldy 업데이트」
+  화면으로 앱 전체를 덮는다(Android = Play 스토어 버튼, iOS = App Store ID 가 생기기 전까지 안내만). **올리기 전에 그 빌드가 두 스토어에 배포돼 있어야 한다.**
+- 빌드 번호: Android `versionCode` · iOS `CURRENT_PROJECT_VERSION` 을 같은 숫자로 맞추고 스토어에 올릴 때마다 1씩 올린다. 지금 **2**(키보드 · 진동 · 공유 · 글자 크기 플러그인).
+
+**앱에서 끈 것 · 고정한 것**
+- **서비스 워커 끔**: 앱에서는 등록하지 않고, 예전 빌드가 남긴 것은 다음 실행 때 해제 + 캐시 삭제(`service-worker-register.tsx`). 앱은 늘 최신 배포를 띄우는데
+  SW 가 배포 직후 옛 HTML 을 먼저 보여 주고, 자기 오프라인 화면을 따로 띄웠다. 오프라인은 `server.errorPath`(연결 실패 화면)가 맡는다.
+- **관리 콘솔 안 열림**: `appendUserAgent: "StayOpsApp"` → 서버(`mobile-device.ts`)가 늘 모바일 화면으로 보낸다. 아이패드 앱은 Mac UA 를 보내
+  첫 요청이 관리 콘솔로 갈 수 있었다. 그래서 앱에는 관리 콘솔의 엑셀 · PDF 내보내기 · 인쇄(WebView 에서 동작 안 함)가 나오지 않는다.
+  모바일 화면의 내려받기는 게시판 첨부(서명 URL → 앱 안 브라우저) 하나뿐이다.
+
+**네이티브 동작**
+- 키보드(`@capacitor/keyboard`): iOS 입력칸 위 「‹ › 완료」 막대 숨김(`NativeShellBridge`). iOS `resize: None` — 웹은 Safari 처럼 visualViewport 로
+  키보드를 처리하도록 맞춰져 있다(`KeyboardInsetSync`). 키보드 뒤 바탕 = 앱 바탕색(`autoBackdropColor: auto`). Android `resizeOnFullScreen` —
+  edge-to-edge 에서 키보드가 입력칸을 가리는 버그 우회.
+- 진동(`@capacitor/haptics`): `haptic()`(`src/lib/haptics.ts`)이 앱에서는 Taptic Engine · 시스템 진동. 호출부는 그대로. iOS 앱은 예전에 진동이 전혀 없었다.
+- 공유(`@capacitor/share`): `shareLink()`(`src/lib/share-link.ts`) — 앱 = OS 공유 시트, 브라우저 = Web Share → 클립보드. Android WebView 는
+  `navigator.share` 가 없어 링크 복사로만 끝났다. 쓰는 곳: 게시판 글 공유.
+- 글자 크기(`@capacitor/text-zoom`): 기기 글자 크기를 따르되 **0.85~1.15 배**로 묶는다. 앱으로 돌아올 때마다 다시 맞춘다. Android WebView 는
+  원래 제한 없이 따라가 큰 글씨에서 화면이 깨질 수 있었고 iOS 는 아예 무시했다.
+
+**오류 수집**
+- 외부 서비스 없이 `POST /api/client-errors` → **Vercel 런타임 로그**에 `[client-error] {json}` 한 줄. Vercel → Logs 에서 `client-error` 로 검색.
+  DB 에 저장하지 않는다(보관 = Vercel 로그 보관 기간).
+- 보내는 것: 출처(`error-boundary` · `global-error` · `window-error` · `unhandled-rejection`) · 메시지 · 스택(4KB) · digest · **경로만**(쿼리 제외 — 로그인 코드) ·
+  플랫폼(ios · android · pwa · web) · 앱 버전 · 빌드 · 온라인 여부 · UA. **사용자 · 조직 ID 는 보내지 않는다**(개인정보 라벨 「진단, 연결 안 됨」 — `18` §3 · §4, 방침 「오류 진단 정보」).
+- 오류 화면에 걸린 오류는 모든 화면에서, 잡히지 않은 오류는 앱 · 설치한 PWA 에서만(브라우저 확장 잡음 제외). 한 화면 최대 10건 · 같은 메시지 한 번.
+- 오류 화면(`error.tsx` · `global-error.tsx` → `AppErrorScreen`)도 바꿨다: 예전엔 흰 바탕 영어 「Something went wrong / Try again」뿐이라, 오프라인에서
+  화면을 옮기면 이 화면이 뜨고 다시 시도가 먹지 않았다(N6 「영어만 나오고 아무것도 안 눌림」의 원인으로 보임). 지금은 3개 언어 · 아이보리 ·
+  오프라인이면 오프라인 안내 + 연결되면 자동 재시도 · 홈으로.
+
+**보안 · 스토어 설정**
+- Android 백업 끔: `allowBackup="false"` + `dataExtractionRules`(클라우드 · 기기 이전 모두 제외). 앱 데이터에 WebView 로그인 쿠키가 있어 다른 기기로 로그인 상태가 복원될 수 있었다.
+- iOS `ITSAppUsesNonExemptEncryption = false` — HTTPS 외 자체 암호화가 없다. TestFlight 업로드마다 수출 규정 질문을 받지 않는다.
+
+### Android 릴리스 서명 (2026-10-09)
+
+Play 에 올릴 AAB 는 **업로드 키**로 서명한다(Play App Signing 이 배포 키를 따로 관리). Play Console 계정(A3) 없이도 지금 만들어 둘 수 있다.
+
+1. 키 만들기 — Android Studio → Build → **Generate Signed App Bundle or APK** → Android App Bundle → Key store path 「Create new…」.
+   저장 위치는 **빌드 사본 밖**(예: `C:\dev\stayops-keys\stayops-upload.jks`), Alias `upload`, 유효 기간 25년 이상, 이름 · 조직에 회사 정보.
+2. `C:\dev\stayops-android\android\keystore.properties` 를 만든다(저장소에는 넣지 않는다 — `android/.gitignore`, 동기화 스크립트도 지우지 않음):
+   ```
+   storeFile=C:/dev/stayops-keys/stayops-upload.jks
+   storePassword=…
+   keyAlias=upload
+   keyPassword=…
+   ```
+   `android/app/build.gradle` 이 이 파일이 있으면 release 빌드를 자동으로 서명한다(없으면 서명 없이).
+3. **키 파일과 비밀번호를 회사 비밀 보관소 두 곳 이상에 백업한다.** 잃어버리면 Play Console 에서 업로드 키 재설정을 요청해야 한다(며칠 걸림).
+4. 릴리스 AAB: Build → Generate Signed App Bundle → release → `android/app/release/app-release.aab`. 올릴 때마다 `versionCode` +1(iOS 빌드 번호도 같이).
 
 ### 아이콘 · 스플래시
 

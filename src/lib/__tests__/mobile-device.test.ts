@@ -16,6 +16,10 @@ describe("device surface", () => {
     expect(getDeviceSurfaceFromHeaders(headers)).toBe("mobile");
   });
 
+  it("the iPad app (Mac UA + StayOpsApp tag) is mobile even before the cookie is set", () => {
+    expect(getDeviceSurface(`${IPAD_SAFARI} StayOpsApp`)).toBe("mobile");
+  });
+
   it("phones and Android tablets stay mobile, PCs stay desktop", () => {
     expect(getDeviceSurface("Mozilla/5.0 (Linux; Android 14; SM-X910) AppleWebKit/537.36 Chrome/128 Safari/537.36")).toBe("mobile");
     expect(getDeviceSurface("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36")).toBe("desktop");

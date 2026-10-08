@@ -24,6 +24,89 @@ export function isNativeApp(): boolean {
   return Boolean(cap?.isNativePlatform?.());
 }
 
+type CapacitorGlobal = {
+  isNativePlatform?: () => boolean;
+  isPluginAvailable?: (name: string) => boolean;
+  getPlatform?: () => string;
+};
+
+function capacitorGlobal(): CapacitorGlobal | null {
+  if (typeof window === "undefined") return null;
+  return (window as unknown as { Capacitor?: CapacitorGlobal }).Capacitor ?? null;
+}
+
+/**
+ * 이 앱 설치본에 해당 네이티브 플러그인이 들어 있는가(2026-10-09, 웹 · 앱 버전 어긋남 대비).
+ *
+ * 앱은 배포된 웹을 띄우므로 **웹 배포는 이미 깔린 모든 앱 버전에 즉시 들어간다.** 새 웹이 옛 설치본에 없는 플러그인을 부르면
+ * 「not implemented」로 동작이 끊긴다. 네이티브 플러그인을 쓰는 곳은 **반드시 이 판정으로 거르고, 없으면 웹 방식으로** 동작한다.
+ * 이름은 플러그인 등록 이름(`Geolocation` · `Haptics` · `Share` · `Keyboard` · `TextZoom` · `App` · `Browser`).
+ */
+export function hasNativePlugin(name: string): boolean {
+  const cap = capacitorGlobal();
+  if (!cap?.isNativePlatform?.()) return false;
+  try {
+    return Boolean(cap.isPluginAvailable?.(name));
+  } catch {
+    return false;
+  }
+}
+
+/** "ios" · "android" · null(브라우저 · PWA). */
+export function nativePlatform(): "ios" | "android" | null {
+  const cap = capacitorGlobal();
+  if (!cap?.isNativePlatform?.()) return null;
+  const platform = cap.getPlatform?.();
+  return platform === "ios" || platform === "android" ? platform : null;
+}
+
+export type NativeAppInfo = { platform: "ios" | "android"; build: number; version: string };
+
+let nativeAppInfo: Promise<NativeAppInfo | null> | null = null;
+
+/** 설치된 앱의 버전 · 빌드 번호(앱이 아니면 null). 한 번 읽어 둔다. */
+export function getNativeAppInfo(): Promise<NativeAppInfo | null> {
+  nativeAppInfo ??= (async () => {
+    const platform = nativePlatform();
+    if (!platform || !hasNativePlugin("App")) return null;
+    try {
+      const { App } = await import("@capacitor/app");
+      const info = await App.getInfo();
+      const build = Number.parseInt(info.build, 10);
+      return { platform, build: Number.isFinite(build) ? build : 0, version: info.version };
+    } catch {
+      return null;
+    }
+  })();
+  return nativeAppInfo;
+}
+
+/**
+ * 앱 사용자 에이전트 꼬리표 — `capacitor.config.ts` `appendUserAgent` 와 같아야 한다. 서버(`mobile-device.ts`)는 이 꼬리표가 있으면
+ * 기기 종류와 상관없이 모바일 화면으로 보낸다(아이패드 앱이 Mac 으로 보내는 UA 때문에 관리 콘솔로 가지 않게).
+ */
+export const NATIVE_APP_UA_TAG = "StayOpsApp";
+
+/**
+ * 웹이 요구하는 **최소 앱 빌드 번호**(Android `versionCode` · iOS `CURRENT_PROJECT_VERSION`). 이보다 낮은 설치본에는
+ * 「업데이트」 화면을 띄운다(`NativeUpdateGate`).
+ *
+ * 올리는 때: 웹이 새 네이티브 플러그인 · 설정 **없이는 동작할 수 없게** 바뀔 때만. 플러그인 판정(`hasNativePlugin`)으로 웹 방식
+ * 대체가 되면 올리지 않는다. 올리기 전에 그 빌드가 두 스토어에 **이미 배포돼 있어야** 한다 — 아니면 사용자가 받을 새 버전이 없다.
+ * 문서: docs/engineering/03-deployment-strategy.md 「웹 · 앱 버전 어긋남」.
+ */
+export const MIN_NATIVE_BUILD: Record<"ios" | "android", number> = { ios: 1, android: 1 };
+
+/**
+ * 스토어 주소. Android 는 앱 ID 로 정해진다. iOS 는 App Store 앱 ID(숫자)가 C9 등록 후 생긴다 — 그 전에는 null 이라
+ * 업데이트 화면에 버튼 없이 안내만 나온다.
+ */
+export const NATIVE_STORE_URL: Record<"ios" | "android", string | null> = {
+  // market: 주소는 Play 스토어 앱으로 바로 연다(앱 안 브라우저를 거치지 않는다 — http 가 아니라 NativeShellBridge 가 건드리지 않고 OS 로 넘어간다).
+  android: "market://details?id=com.harutokyo.stayops",
+  ios: null,
+};
+
 /**
  * `com.harutokyo.stayops://auth/callback?...` 이면 웹 콜백 경로(`/auth/callback?...`)를, 아니면 null.
  *

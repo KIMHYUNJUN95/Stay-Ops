@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { isNativeApp } from "@/lib/native-app";
+import { hasNativePlugin, isNativeApp, nativePlatform } from "@/lib/native-app";
 import { hasOpenOverlay } from "@/lib/swipe-back/controller";
 
 /**
@@ -15,13 +15,38 @@ import { hasOpenOverlay } from "@/lib/swipe-back/controller";
  *    더 갈 곳이 없으면 앱을 최소화한다(종료하지 않는다). Esc 를 받지 않는 대화상자에서 막히지 않도록, 1.2초 안에 다시 누르면 화면 이동.
  * 3. **상태바 아이콘** — 어두운 아이콘 고정(앱 화면은 늘 밝다). 2026-10-08 네이티브 품질 N1.
  * 4. **길게 누르기 브라우저 메뉴 차단** — 링크 · 사진의 「링크 주소 복사 · Chrome 에서 열기」 메뉴(입력칸 제외). N8.
+ * 5. **iOS 키보드 위 「‹ › 완료」 막대 숨김** — 웹 입력칸 티가 가장 많이 나는 곳(2026-10-09, N13).
+ * 6. **기기 글자 크기** — OS 글자 크기 설정을 따르되 0.85~1.15 배로 묶는다(N14). Android WebView 는 원래 기기 글자 크기를 제한 없이
+ *    따라가 큰 글씨에서 화면이 깨질 수 있었고, iOS WebView 는 아예 무시했다. 앱으로 돌아올 때마다 다시 맞춘다(설정을 바꿨을 수 있다).
+ *
+ * 네이티브 플러그인은 모두 `hasNativePlugin` 으로 거른다 — 옛 설치본에 없는 플러그인을 불러 멈추지 않게(웹 · 앱 버전 어긋남).
  */
+
+/** 기기 글자 크기 배율의 허용 범위 — 화면이 깨지지 않는 선에서 따른다. */
+const TEXT_ZOOM_MIN = 0.85;
+const TEXT_ZOOM_MAX = 1.15;
+
+async function syncTextZoom() {
+  if (!hasNativePlugin("TextZoom")) return;
+  try {
+    const { TextZoom } = await import("@capacitor/text-zoom");
+    const { value } = await TextZoom.getPreferred();
+    const clamped = Math.min(TEXT_ZOOM_MAX, Math.max(TEXT_ZOOM_MIN, Number.isFinite(value) ? value : 1));
+    await TextZoom.set({ value: clamped });
+  } catch {
+    // 실패하면 WebView 기본값 그대로 — 기능에는 영향 없음
+  }
+}
 
 export function NativeShellBridge() {
   useEffect(() => {
     if (!isNativeApp()) return;
 
     async function openInAppBrowser(url: string) {
+      if (!hasNativePlugin("Browser")) {
+        window.location.assign(url);
+        return;
+      }
       const { Browser } = await import("@capacitor/browser");
       await Browser.open({ url, presentationStyle: "popover" });
     }
@@ -79,11 +104,27 @@ export function NativeShellBridge() {
       await SystemBars.setStyle({ style: SystemBarsStyle.Light }).catch(() => undefined);
     })();
 
-    // 2. Android 뒤로가기
+    // 5. iOS 키보드 막대
+    if (nativePlatform() === "ios" && hasNativePlugin("Keyboard")) {
+      void (async () => {
+        const { Keyboard } = await import("@capacitor/keyboard");
+        await Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => undefined);
+      })();
+    }
+
+    // 6. 기기 글자 크기
+    void syncTextZoom();
+
+    // 2. Android 뒤로가기 (+ 6. 앱으로 돌아올 때 글자 크기 다시 맞추기)
     let removeBack: (() => void) | null = null;
+    let removeResume: (() => void) | null = null;
     let disposed = false;
     void (async () => {
+      if (!hasNativePlugin("App")) return;
       const { App } = await import("@capacitor/app");
+      const resume = await App.addListener("resume", () => void syncTextZoom());
+      if (disposed) void resume.remove();
+      else removeResume = () => void resume.remove();
       let lastEscapeAt = 0;
       const listener = await App.addListener("backButton", ({ canGoBack }) => {
         // Esc 를 받지 않는 대화상자도 있다 — 1.2초 안에 다시 눌렀는데도 그대로면 화면 이동으로 넘어간다(먹통 방지).
@@ -107,6 +148,7 @@ export function NativeShellBridge() {
       document.removeEventListener("contextmenu", onContextMenu, true);
       window.open = originalOpen;
       removeBack?.();
+      removeResume?.();
     };
   }, []);
 

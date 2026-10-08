@@ -58,6 +58,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
           "업무 기록: 청소 · 수리 · 분실물 · 주문 · 할 일 · 게시판 등에서 직접 작성한 글, 댓글, 첨부한 사진.",
           "투숙객 정보: 소속 조직이 예약 관리 시스템(Beds24)과 연동한 경우, 업무 처리에 필요한 예약 정보(투숙객 이름, 숙박 일정, 객실 등)와 투숙객 리뷰.",
           "기술 정보: 로그인 상태 유지와 언어 설정을 위한 쿠키 · 로컬 저장소. 광고 식별자나 추적용 쿠키는 쓰지 않습니다.",
+          "오류 진단 정보: 화면에서 오류가 나면 문제를 고치기 위해 오류 내용, 화면 경로, 앱 버전, 기기 · 브라우저 종류를 서버 로그에 기록합니다. 계정과 연결하지 않으며 서버 로그 보관 기간이 지나면 지워집니다.",
         ],
       },
       {
@@ -149,6 +150,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
           "業務記録：清掃・修理・遺失物・注文・タスク・掲示板などでご本人が作成した投稿、コメント、添付した写真。",
           "宿泊者情報：所属組織が予約管理システム（Beds24）と連携している場合、業務に必要な予約情報（宿泊者氏名、宿泊日程、客室など）と宿泊者のレビュー。",
           "技術情報：ログイン状態の維持と言語設定のためのCookie・ローカルストレージ。広告識別子やトラッキング用Cookieは使用しません。",
+          "エラー診断情報：画面でエラーが発生した場合、問題を修正するためにエラー内容、画面のパス、アプリのバージョン、端末・ブラウザの種類をサーバーログに記録します。アカウントとは紐付けず、サーバーログの保存期間が過ぎると削除されます。",
         ],
       },
       {
@@ -240,6 +242,7 @@ export const privacyPolicy: Record<Locale, LegalDocument> = {
           "Work records: posts, comments and photos you create in cleaning, maintenance, lost & found, orders, tasks, the board and similar features.",
           "Guest data: if your organization connects its booking system (Beds24), the reservation details needed for operations (guest name, stay dates, room, etc.) and guest reviews.",
           "Technical: cookies and local storage to keep you signed in and remember your language. We do not use advertising identifiers or tracking cookies.",
+          "Error diagnostics: when a screen hits an error, we record the error details, the screen path, the app version and the device / browser type in our server logs so we can fix it. This is not linked to your account and is deleted when the server log retention period ends.",
         ],
       },
       {
