@@ -7,6 +7,7 @@ import {
   BEDS24_LIVE_EVENT,
   beds24LiveScopesOverlap,
   beds24LiveTopic,
+  type Beds24LiveKind,
   type Beds24LivePayload,
   type Beds24LiveScope,
 } from "@/lib/beds24-live";
@@ -28,6 +29,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
  * - **private 채널**이다 — 구독 전에 `realtime.setAuth()` 를 기다려 첫 join 에 사용자 JWT 를 싣는다.
  *   토큰 갱신은 supabase-js 가 한다(`TOKEN_REFRESHED` → `setAuth`, heartbeat 마다 콜백으로 재확인).
  * - 연결 상태를 `BEDS24_LIVE_STATUS_EVENT` 로 알린다 — `Beds24LiveDot` 이 화면에 점으로 보여 준다.
+ * - `kinds` 를 주면 **그 종류의 신호만** 받는다(2026-10-08 — 매출 · 가동률은 예약만 본다. 요금 · 차단 동기화마다 2년 넘는
+ *   예약을 다시 읽을 이유가 없다). 끊김 따라잡기(①②③)는 종류와 상관없이 그대로 한다.
  * - `router.refresh()` 는 서버 컴포넌트만 다시 받는다 — 열려 있는 패널·입력·선택 같은 클라이언트
  *   상태는 그대로 남는다.
  */
@@ -53,14 +56,17 @@ export function useBeds24LiveRefresh(
   organizationId: string | null | undefined,
   onChange?: () => void,
   scope?: Beds24LiveScope | null,
+  kinds?: readonly Beds24LiveKind[] | null,
 ) {
   const router = useRouter();
   const onChangeRef = useRef(onChange);
   const scopeRef = useRef(scope);
+  const kindsRef = useRef(kinds);
   useEffect(() => {
     onChangeRef.current = onChange;
     scopeRef.current = scope;
-  }, [onChange, scope]);
+    kindsRef.current = kinds;
+  }, [onChange, scope, kinds]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -94,6 +100,8 @@ export function useBeds24LiveRefresh(
     const onOnline = () => schedule();
 
     const onSignal = (message: { payload?: Partial<Beds24LivePayload> }) => {
+      const kind = message.payload?.kind;
+      if (kindsRef.current && kind && !kindsRef.current.includes(kind)) return;
       if (!beds24LiveScopesOverlap(message.payload?.scope, scopeRef.current)) return;
       schedule();
     };
@@ -137,11 +145,14 @@ export function useBeds24LiveRefresh(
 export function Beds24LiveRefresh({
   organizationId,
   scope,
+  kinds,
 }: {
   organizationId: string;
   /** 이 화면이 보여주는 건물·날짜. 없으면 모든 신호에 다시 읽는다. */
   scope?: Beds24LiveScope | null;
+  /** 받을 신호 종류. 없으면 전부(예약 · 요금 · 차단). */
+  kinds?: readonly Beds24LiveKind[] | null;
 }) {
-  useBeds24LiveRefresh(organizationId, undefined, scope);
+  useBeds24LiveRefresh(organizationId, undefined, scope, kinds);
   return null;
 }

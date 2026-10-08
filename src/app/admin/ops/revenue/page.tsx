@@ -1,4 +1,5 @@
 import { OpsRevenueConsole } from "@/components/admin/ops/ops-revenue-console";
+import { Beds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { toJstDateString } from "@/lib/admin-calendar-dashboard";
 import { adminLocaleTag } from "@/lib/admin-export-meta";
@@ -18,6 +19,8 @@ import { requireOpsAdminPage } from "../ops-page-session";
  */
 export const dynamic = "force-dynamic";
 
+const LIVE_KINDS = ["reservations"] as const;
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function OpsRevenuePage({ searchParams }: { searchParams: SearchParams }) {
@@ -35,6 +38,8 @@ export default async function OpsRevenuePage({ searchParams }: { searchParams: S
 
   return (
     <AdminShell activeItem={opsNavId("revenue")} title={dictionary.opsAdmin.areaName}>
+      {/* 예약 웹훅이 들어오면 새로고침 없이 다시 읽는다 — 예약 신호만(요금 · 차단은 숫자에 안 쓴다), 2026-10-08. */}
+      <Beds24LiveRefresh kinds={LIVE_KINDS} organizationId={session.organization.id} />
       <OpsRevenueConsole
         copy={dictionary.opsRevenue}
         data={data}

@@ -542,6 +542,7 @@ V2(POST) {"roomId":440617,"action":"PRICE_CHANGE","propId":176430}
 | --- | --- |
 | `/admin` 대시보드 · `/admin/calendar` · `/admin/ops/calendar` · `/admin/cleaning` · `/mobile` 홈 · `/mobile/cleaning` | `<Beds24LiveRefresh>` (`src/components/shared/beds24-live-refresh.tsx`) |
 | `/mobile/calendar` | 기존 예약 구독과 **같은** 디바운스에 신호 채널을 붙였다 — 예약 변경에 두 번 읽지 않는다 |
+| `/admin/ops/revenue` · `/admin/ops/occupancy` (2026-10-08) | `<Beds24LiveRefresh kinds={["reservations"]}>` — **예약 신호만** 받는다(`kinds`). 숫자는 예약으로만 만들고 한 번 읽는 데 2년 넘는 예약을 읽으므로, 요금 · 차단 동기화마다 다시 읽지 않는다. 끊김 따라잡기는 그대로 |
 
 - **표마다 postgres 변경 알림을 켜지 않는다.** 재고 웹훅 한 번에 요금 12개월(건물당 ~9,500행)을 다시
   써서 알림이 행 수만큼 쏟아진다. DB 설정(publication)도 바꾸지 않는다.

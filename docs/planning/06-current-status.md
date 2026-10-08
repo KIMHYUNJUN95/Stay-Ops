@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-08 — 매출 · 가동률 화면 실시간 반영
+
+- 두 화면에 `<Beds24LiveRefresh>` 를 붙였다 — 예약 웹훅 · 정합성 · 수기 예약 신호가 오면 새로고침 없이 다시 읽는다(판매 캘린더와 같은 방식).
+  공용 훅에 `kinds` 를 더해 **예약 신호만** 받는다(요금 · 차단 동기화마다 2년 넘는 예약을 다시 읽지 않게). 33번 「화면도 웹훅 기준으로」.
+
 ## 2026-10-07 — 가동률 화면 (`/admin/ops/occupancy`)
 
 - 시안 3개(A 보고서형 · B 객실 × 월 히트맵 · C 앞으로 보기, 2026-09 실데이터) → 사용자 「이대로 구현」 → 탭 셋으로 구현. 숫자는 매출 화면과
