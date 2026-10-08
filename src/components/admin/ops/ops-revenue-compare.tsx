@@ -22,7 +22,17 @@ import {
   type RevenueMode,
   type RevenueRange,
 } from "@/lib/ops-revenue";
-import { bridgeScale, buildBridge, changePctOrNull, groupProperties, niceUnit, topMover, totalOf, type BridgeStep } from "@/lib/ops-revenue-compare";
+import {
+  bridgeScale,
+  buildBridge,
+  changePctOrNull,
+  groupProperties,
+  growthDrivers,
+  niceUnit,
+  topMover,
+  totalOf,
+  type BridgeStep,
+} from "@/lib/ops-revenue-compare";
 import type { OpsRevenueCompareData, OpsRevenueComparePeriod } from "@/lib/ops-revenue-server";
 import "./ops-revenue.css";
 import "./ops-revenue-compare.css";
@@ -276,8 +286,17 @@ export function OpsRevenueCompareConsole({
               yen={yen}
             />
             <GrowthPanel
+              aEx={aEx}
+              bEx={bEx}
               copy={copy}
+              drivers={growthDrivers(groups, data.aCells, data.bCells)}
+              freshNames={groups.fresh}
+              closedNames={groups.closed}
               growth={growth}
+              n={n}
+              signedPoint={signedPoint}
+              signedYen={signedYen}
+              yen={yen}
               insights={[
                 ...(groups.fresh.length > 0
                   ? [fill(copy.insNew, { d: signedYen(delta), n: yen(freshSum), names: groups.fresh.join(" · ") })]
@@ -294,7 +313,7 @@ export function OpsRevenueCompareConsole({
                 ...(() => {
                   const mover = topMover(groups.existing, data.aCells, data.bCells);
                   if (!mover) return [];
-                  return [fill(mover.pct > 0 ? copy.insTopUp : copy.insTopDown, { d: signedPct(mover.pct), name: mover.name })];
+                  return [fill(mover.delta > 0 ? copy.insTopUp : copy.insTopDown, { d: signedPct(mover.pct), name: mover.name, v: signedYen(mover.delta) })];
                 })(),
                 ...(!mixChanged ? [copy.insSame] : []),
               ].slice(0, 3)}
@@ -564,7 +583,7 @@ function TotalPanel({
   );
 }
 
-// ── 02 증감 다이얼 + 요점 ─────────────────────────────────────────────────
+// ── 02 증감 — 기여 막대 + 요점 (2026-10-08, 다이얼 대신) ──────────────────
 
 function GrowthPanel({
   copy,
@@ -572,43 +591,71 @@ function GrowthPanel({
   insights,
   signedPct,
   tone,
+  drivers,
+  aEx,
+  bEx,
+  freshNames,
+  closedNames,
+  n,
+  yen,
+  signedYen,
+  signedPoint,
 }: {
   copy: Copy;
   growth: number | null;
   insights: string[];
   signedPct: (v: number | null) => string;
   tone: (v: number | null) => string;
+  drivers: ReturnType<typeof growthDrivers>;
+  aEx: RevenueMetrics;
+  bEx: RevenueMetrics;
+  freshNames: string[];
+  closedNames: string[];
+  n: (v: number) => string;
+  yen: (v: number) => string;
+  signedYen: (v: number) => string;
+  signedPoint: (v: number) => string;
 }) {
-  const clamped = growth === null ? 0 : Math.max(-50, Math.min(50, growth));
-  const ticks = Array.from({ length: 51 }, (_, i) => {
-    const p = -50 + i * 2;
-    const ang = Math.PI - (i / 50) * Math.PI;
-    const major = i % 5 === 0;
-    const r2 = major ? 112 : 120;
-    const on = growth !== null && (clamped >= 0 ? p >= 0 && p <= clamped : p <= 0 && p >= clamped);
-    return { major, on, x1: 160 + 130 * Math.cos(ang), x2: 160 + r2 * Math.cos(ang), y1: 160 - 130 * Math.sin(ang), y2: 160 - r2 * Math.sin(ang) };
-  });
-  const needle = Math.PI - ((clamped + 50) / 100) * Math.PI;
+  const max = Math.max(1e-9, Math.abs(drivers.totalPoints ?? 0), ...drivers.drivers.map((d) => Math.abs(d.points ?? 0)));
+  const label = (key: (typeof drivers.drivers)[number]["key"]) =>
+    ({
+      closed: { name: copy.driverClosed, sub: closedNames.join(" · ") },
+      fresh: { name: copy.driverFresh, sub: freshNames.join(" · ") },
+      price: { name: copy.driverPrice, sub: fill(copy.driverPriceSub, { a: yen(aEx.adr), b: yen(bEx.adr) }) },
+      volume: { name: copy.driverVolume, sub: fill(copy.driverVolumeSub, { a: n(aEx.occupiedNights), b: n(bEx.occupiedNights) }) },
+    })[key];
+  const bar = (points: number | null) => {
+    const w = points === null ? 0 : (Math.abs(points) / max) * 50;
+    return points !== null && points < 0 ? { right: "50%", width: `${w}%` } : { left: "50%", width: `${w}%` };
+  };
   return (
     <div className="orc__growth">
       <div className="orc__code"><span>{copy.secGrowth}</span><span>B → A</span></div>
-      <svg aria-hidden="true" className="orc__dial" viewBox="0 0 320 170">
-        {ticks.map((t, i) => (
-          <line
-            className={`${t.on ? (clamped >= 0 ? "on" : "neg") : ""}${t.major ? " major" : ""}`}
-            key={i}
-            strokeLinecap="round"
-            x1={t.x1}
-            x2={t.x2}
-            y1={t.y1}
-            y2={t.y2}
-          />
-        ))}
-        <line className="needle" strokeLinecap="round" x1="160" x2={160 + 96 * Math.cos(needle)} y1="160" y2={160 - 96 * Math.sin(needle)} />
-        <circle className="hub" cx="160" cy="160" r="7" />
-      </svg>
-      <div className="orc__dialx"><span>−50%</span><span>0</span><span>+50%</span></div>
       <div className={`orc__growthv ${tone(growth)}`}>{signedPct(growth)}</div>
+      <div className="orc__drivers">
+        {drivers.drivers.map((d) => {
+          const t = label(d.key);
+          return (
+            <div className="dr" key={d.key}>
+              <div className="nm"><b>{t.name}</b><span>{t.sub}</span></div>
+              <div className="tr"><i className={(d.points ?? 0) >= 0 ? "up" : "dn"} style={bar(d.points)} /><em /></div>
+              <div className="vv">
+                <span className={`p ${(d.points ?? 0) >= 0 ? "up" : "dn"}`}>{d.points === null ? "—" : signedPoint(d.points)}</span>
+                <span className="y">{signedYen(d.value)}</span>
+              </div>
+            </div>
+          );
+        })}
+        <div className="dr total">
+          <div className="nm"><b>{copy.driverTotal}</b></div>
+          <div className="tr"><i className={(drivers.totalPoints ?? 0) >= 0 ? "tot" : "dn"} style={bar(drivers.totalPoints)} /><em /></div>
+          <div className="vv">
+            <span className={`p ${tone(drivers.totalPoints)}`}>{signedPct(drivers.totalPoints)}</span>
+            <span className="y">{signedYen(drivers.total)}</span>
+          </div>
+        </div>
+      </div>
+      <p className="orc__drnote">{copy.driverNote}</p>
       <ol className="orc__ins">
         {insights.map((text, index) => (
           <li key={index}>

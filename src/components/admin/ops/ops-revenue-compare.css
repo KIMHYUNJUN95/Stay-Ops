@@ -102,17 +102,29 @@
 .adm .orc__split .v.dn { color: hsl(8 80% 76%); }
 
 .adm .orc__growth { display: flex; flex-direction: column; gap: 8px; padding: 22px 24px; border-radius: 24px; background: var(--card); border: 1px solid hsl(40 18% 82%); box-shadow: var(--orc-shadow); min-width: 0; }
-.adm .orc__dial { width: 100%; max-width: 340px; height: auto; margin: 0 auto; display: block; }
-.adm .orc__dial line { stroke: hsl(40 14% 80%); stroke-width: 1.5; }
-.adm .orc__dial line.major { stroke-width: 2.5; }
-.adm .orc__dial line.on { stroke: var(--orc-a); }
-.adm .orc__dial line.neg { stroke: var(--orc-dn); }
-.adm .orc__dial .needle { stroke: var(--ink); stroke-width: 2.5; }
-.adm .orc__dial .hub { fill: var(--card); stroke: var(--ink); stroke-width: 2.5; }
-.adm .orc__dialx { display: flex; justify-content: space-between; width: 100%; max-width: 320px; margin: -6px auto 0; font: 500 10px var(--mono); color: var(--faint); }
-.adm .orc__growthv { text-align: center; font: 300 42px var(--mono); letter-spacing: -0.05em; }
+.adm .orc__growthv { font: 300 46px var(--mono); letter-spacing: -0.05em; line-height: 1; margin: 2px 0 6px; }
 .adm .orc__growthv.up { color: var(--orc-a); }
 .adm .orc__growthv.dn { color: var(--orc-dn-ink); }
+/* 기여 막대 — 가운데 0 선, 왼쪽 = 뺀 몫, 오른쪽 = 보탠 몫 */
+.adm .orc__drivers { display: flex; flex-direction: column; }
+.adm .orc__drivers .dr { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 118px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid hsl(40 18% 90%); }
+.adm .orc__drivers .dr.total { border-top: 1.5px solid var(--ink); }
+.adm .orc__drivers .nm { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.adm .orc__drivers .nm b { font-size: 12.5px; }
+.adm .orc__drivers .nm span { font: 500 10.5px var(--mono); color: var(--adm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .orc__drivers .tr { position: relative; height: 12px; border-radius: 6px; background: hsl(40 18% 93%); }
+.adm .orc__drivers .tr em { position: absolute; left: 50%; top: -4px; bottom: -4px; border-left: 1.5px solid var(--ink); }
+.adm .orc__drivers .tr i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.adm .orc__drivers .tr i.up { background: var(--orc-up); }
+.adm .orc__drivers .tr i.dn { background: var(--orc-dn); }
+.adm .orc__drivers .tr i.tot { background: linear-gradient(90deg, hsl(223 62% 46%), hsl(223 62% 36%)); }
+.adm .orc__drivers .vv { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.adm .orc__drivers .p { font: 600 13px var(--mono); }
+.adm .orc__drivers .p.up { color: var(--orc-up-ink); }
+.adm .orc__drivers .p.dn { color: var(--orc-dn-ink); }
+.adm .orc__drivers .total .p.up { color: var(--orc-a); }
+.adm .orc__drivers .y { font: 400 10.5px var(--mono); color: var(--adm-muted); }
+.adm .orc__drnote { margin: 4px 0 6px; font-size: 11px; line-height: 1.55; color: var(--adm-muted); }
 .adm .orc__ins { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--orc-hair); }
 .adm .orc__ins li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid hsl(40 18% 90%); font-size: 12.5px; line-height: 1.55; color: var(--ink); }
 .adm .orc__ins .no { font: 500 11px var(--mono); color: var(--faint); }
