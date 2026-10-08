@@ -1143,8 +1143,16 @@ export async function readOpsSalesInputs(args: {
   supabase: SupabaseClient<Database>;
   window: { start: string; endExclusive: string };
   properties: readonly string[];
+  /**
+   * `false` 면 차단(요금 표 blackout · `room_blocks`)을 읽지 않는다 — `blocks` 는 빈 배열. 매출 · 가동률 · 비교 화면은 차단을
+   * 계산에 쓰지 않는다(「오늘 이후 빈방」에만 쓰인다, 2026-10-08 속도). 기본 `true`(판매 캘린더 매출 요약).
+   */
+  withBlocks?: boolean;
+  /** 예약 쪽 읽기를 몇 장씩 한꺼번에 — `readAllPages` 의 `concurrency`. 기본 1. */
+  concurrency?: number;
 }) {
   const { organizationId, supabase, window } = args;
+  const withBlocks = args.withBlocks ?? true;
   const roomRowsPromise = fetchRoomCatalogRows(organizationId, supabase);
   const reservationsPromise = readAllPages<Record<string, unknown>>((from, to) =>
     supabase
@@ -1157,8 +1165,10 @@ export async function readOpsSalesInputs(args: {
       .order("check_in_date", { ascending: true })
       .order("id", { ascending: true })
       .range(from, to) as unknown as SlimReservationPage,
+    { concurrency: args.concurrency },
   );
-  const blocksPromise = readAllPages<BlockRow>((from, to) =>
+  const none = <Row,>() => Promise.resolve({ data: [] as Row[], error: null as { message: string } | null });
+  const blocksPromise = !withBlocks ? none<BlockRow>() : readAllPages<BlockRow>((from, to) =>
     supabase
       .from("room_blocks")
       .select("id, property_name, room_label, start_date, end_date, external_room_id")
@@ -1169,7 +1179,7 @@ export async function readOpsSalesInputs(args: {
       .order("id", { ascending: true })
       .range(from, to),
   );
-  const blackoutPromise = readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
+  const blackoutPromise = !withBlocks ? none<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>() : readAllPages<Pick<RateRow, "room_id" | "stay_date" | "min_stay">>((from, to) =>
     supabase
       .from("room_daily_rates")
       .select("room_id, stay_date, min_stay")
@@ -1203,7 +1213,7 @@ export async function readOpsSalesInputs(args: {
     reservationsPromise,
     blocksPromise,
     blackoutPromise,
-    readBlockRoomKeyResolver(supabase, organizationId),
+    withBlocks ? readBlockRoomKeyResolver(supabase, organizationId) : Promise.resolve(blockRoomAxisKey),
   ]);
   if (reservationsResult.error) throw new Error(reservationsResult.error.message);
   if (blocksResult.error) throw new Error(blocksResult.error.message);

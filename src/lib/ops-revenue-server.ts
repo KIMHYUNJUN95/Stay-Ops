@@ -245,8 +245,11 @@ export async function getOpsRevenueCompareData(
  */
 async function createRevenueSummarizer(session: AppSession, window: { start: string; endExclusive: string }, today: string) {
   const supabase = await getSupabaseServerClient();
-  const inputs = await readOpsSalesInputs({ organizationId: session.organization.id, properties: [], supabase, window });
+  // 차단은 안 읽고(이 화면들은 안 쓴다) 예약은 6장씩 한꺼번에 — 2026-10-08 속도(읽기 4.3초 → 측정은 34번).
+  const inputs = await readOpsSalesInputs({ concurrency: 6, organizationId: session.organization.id, properties: [], supabase, window, withBlocks: false });
   const reservations = inputs.reservations.map((reservation) => ({ ...reservation, raw: reservation.raw as SalesRawPayload }));
+  // 달 조각마다 그 조각과 겹치는 예약만 넘긴다 — 조각마다 1만 건 넘게 훑지 않게(결과는 같다: 안 겹치는 예약은 아무것도 더하지 않는다).
+  const overlapping = (piece: Piece) => reservations.filter((reservation) => reservation.checkIn < piece.endExclusive && reservation.checkOut > piece.start);
 
   const cache = new Map<string, PieceResult>();
   /** `raw` = 문 열기 전 규칙 없이(분모 = 객실 수 × 일수) — 「앞으로」 탭. */
@@ -261,7 +264,7 @@ async function createRevenueSummarizer(session: AppSession, window: { start: str
       // 저쪽 매출 화면(`RevenueDashboard`)은 마이너스 금액 예약도 그대로 더한다 — 그 화면과 숫자를 맞춘다(2026-10-07).
       negativeAmounts: "include",
       properties: inputs.properties,
-      reservations,
+      reservations: overlapping(piece),
       rooms: inputs.rooms,
       start: piece.start,
       today,

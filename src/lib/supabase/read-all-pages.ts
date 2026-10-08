@@ -15,16 +15,35 @@
  */
 export const SUPABASE_PAGE_SIZE = 1000;
 
-/** 한 페이지가 꽉 차면 다음 장을 더 읽는다. 덜 차면 그게 마지막이다. */
+/**
+ * 한 페이지가 꽉 차면 다음 장을 더 읽는다. 덜 차면 그게 마지막이다.
+ *
+ * `concurrency` 를 주면 첫 장 뒤로 **그만큼 장을 한꺼번에** 요청한다(2026-10-08 — 매출 · 가동률이 예약 1만 2천 행을 1,000행씩
+ * 차례로 12번 왕복해 4초 넘게 걸렸다). 순서는 장 번호대로 붙이고, 덜 찬 장(또는 빈 장)이 나오면 거기서 끝낸다 — 끝을 넘어 미리
+ * 요청한 장은 빈 결과라 버린다. 기본은 1(예전과 같다).
+ */
 export async function readAllPages<Row>(
   build: (from: number, to: number) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>,
+  options?: { concurrency?: number },
 ): Promise<{ data: Row[]; error: { message: string } | null }> {
+  const concurrency = Math.max(1, Math.floor(options?.concurrency ?? 1));
   const rows: Row[] = [];
-  for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
-    const page = await build(offset, offset + SUPABASE_PAGE_SIZE - 1);
-    if (page.error) return { data: rows, error: page.error };
-    const batch = page.data ?? [];
-    rows.push(...batch);
-    if (batch.length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
+  const first = await build(0, SUPABASE_PAGE_SIZE - 1);
+  if (first.error) return { data: rows, error: first.error };
+  rows.push(...(first.data ?? []));
+  if ((first.data ?? []).length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
+  for (let page = 1; ; page += concurrency) {
+    const batch = await Promise.all(
+      Array.from({ length: concurrency }, (_, index) => {
+        const offset = (page + index) * SUPABASE_PAGE_SIZE;
+        return build(offset, offset + SUPABASE_PAGE_SIZE - 1);
+      }),
+    );
+    for (const result of batch) {
+      if (result.error) return { data: rows, error: result.error };
+      const data = result.data ?? [];
+      rows.push(...data);
+      if (data.length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
+    }
   }
 }

@@ -209,6 +209,21 @@ roomId 를 같은 이름으로 합친다.
 파일: `src/app/admin/ops/revenue/page.tsx` · `actions.ts`(내보내기) · `src/components/admin/ops/ops-revenue-console.tsx` ·
 `ops-revenue.css` · `src/lib/ops-revenue.ts` · `src/lib/ops-revenue-server.ts` · i18n `opsRevenue`(ko · ja · en).
 
+## 매출 · 가동률 · 비교 화면 속도 (2026-10-08 점검)
+
+사용자 「대시보드에서 가동률 · 매출 들어가는 속도가 느리다」. 서버 단계를 실데이터로 쟀다(개발 PC → 도쿄 DB, 운영은 Vercel `hnd1` ·
+Supabase `ap-northeast-1` 로 둘 다 도쿄라 이보다 빠르다).
+
+| 단계 | 전 | 후 | 고친 것 |
+| --- | --- | --- | --- |
+| 예약 읽기(매출 창 2024-10 ~ 2027-01, 12,263행) | 4.3초 | 약 2.0초 | 1,000행씩 **차례로 12번** 왕복 → 첫 장 뒤로 6장씩 한꺼번에(`readAllPages` `concurrency`) |
+| 차단 읽기(요금 표 blackout · `room_blocks` · 유닛 확인) | 약 0.5초 | 0 | 이 화면들은 차단을 안 쓴다 — `readOpsSalesInputs({ withBlocks: false })` |
+| 달 조각 계산(27~57조각) | 0.43 ~ 1.0초 | 0.04초 | 조각마다 겹치는 예약만 넘김 — 결과가 **완전히 같음**을 확인(전 · 후 요약 JSON 비교) |
+| 누른 뒤 첫 반응 | 서버를 다 기다림 | 즉시 | `loading.tsx`(매출 · 가동률 · 비교) — 셸 + 골격(`OpsMetricsLoading`, 셸은 브라우저 세션으로) |
+
+남은 시간은 1만 2천 행 × 약 20개 필드의 전송 자체다. 더 줄이려면 계산된 칸을 캐시하고 예약 신호(`signalBeds24Change`)로 비우는 방법이
+있다(다음 단계 후보 — 숫자 정확성 때문에 캐시 무효화 설계를 먼저 해야 한다). 비교 화면은 객실 첫 판매일 때문에 예약 기록 전부(약 1만 5천 행)를 읽는다.
+
 ## 매출 비교 (2026-10-08 구현 — 시안 「매출 비교」 1번 v4)
 
 `/admin/ops/revenue/compare` — 매출 화면의 세 번째 탭 「비교」(링크: 매출 화면에서 보던 기간이 A, 그 전년 같은 기간이 B). 게이트는

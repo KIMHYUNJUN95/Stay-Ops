@@ -16,6 +16,11 @@ and the major mobile/admin operations modules are implemented and being hardened
   `dictionary.auth.console.entry*Mobile`(ko/ja/en) — 「로그인하고 업무를 시작하세요」. PC 는 그대로. `src/app/auth/login/page.tsx`.
 - 출시 체크리스트 · 진행: `17-app-release-plan.md`. 심사 자료: `18-store-review-kit.md`.
 
+## 2026-10-08 — 매출 · 가동률 · 비교 화면 속도
+
+- 서버 단계 측정 → 예약 읽기를 6장씩 한꺼번에(4.3 → 약 2.0초, 개발 PC 기준) · 차단 읽기 생략(−0.5초) · 달 조각 계산은 겹치는 예약만(0.43 → 0.04초,
+  결과 동일 확인) · 세 화면에 `loading.tsx` 골격(누르자마자 반응). 숫자는 그대로. 34번 「화면 속도」.
+
 ## 2026-10-08 — 매출 비교(A vs B) 화면
 
 - `/admin/ops/revenue/compare`(매출 화면 탭 「비교」) — A · B 기간(월 · 연 · 기수 · 주 · 직접, 「전년 같은 기간」 · 「바로 전 기간」), 합계 건물 칩,
