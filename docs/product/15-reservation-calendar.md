@@ -998,6 +998,11 @@ When Beds24 sends a Japanese property name (e.g. `"荒木町A"`) in the reservat
   않는 신호는 무시한다. 지금 이 범위를 실제로 거는 것은 판매 캘린더(`/admin/ops/calendar`)뿐이고, 이
   모바일 예약 캘린더를 포함한 나머지 구독은 **범위 없이 그대로 전부** 받는다(바뀌지 않았다). 계기와 상세:
   `docs/product/33-calendar-write-features.md` → 「판매 캘린더가 스스로 무한 새로고침을 돌던 것」.
+- **2026-10-09 — 놓친 변경 따라잡기(판매 캘린더와 같은 공용 장치).** Beds24 신호 구독을 직접 짜던 것을 공용
+  `useBeds24LiveRefresh`(`src/components/shared/beds24-live-refresh.tsx`)로 바꿨다. 실시간 신호는 저장되지 않아서, 폰 잠금 ·
+  와이파이 전환 · 오래 가려 둔 화면으로 연결이 끊긴 동안 온 예약은 다음 변경이나 새로고침까지 안 보였다. 이제 ① Beds24 채널이 끊겼다
+  다시 붙으면 ② 네트워크가 돌아오면(`online`) ③ 1분 넘게 가려졌던 화면이 다시 보이면 **한 번 다시 읽는다**. 예약 표 구독
+  (`calendar-reservations:<조직>`)도 끊겼다 다시 붙으면 한 번 다시 읽는다. 연결 상태는 공용 점(`Beds24LiveDot`)과 같은 신호로 알린다.
 
 ### Cancellation visibility policy (verified)
 

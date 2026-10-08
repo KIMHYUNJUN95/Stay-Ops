@@ -6,7 +6,7 @@ import { MobileCalendarView, type CalendarReservationItem, type CalendarRoomBloc
 import type { PropertyMapMeta } from "@/lib/property-map-links";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { Locale } from "@/lib/i18n";
-import { BEDS24_LIVE_CHANNEL_OPTIONS, BEDS24_LIVE_EVENT, beds24LiveTopic } from "@/lib/beds24-live";
+import { useBeds24LiveRefresh } from "@/components/shared/beds24-live-refresh";
 
 type MobileCalendarLiveViewProps = {
   copy: {
@@ -104,6 +104,10 @@ type MobileCalendarLiveViewProps = {
 
 export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
   const router = useRouter();
+  // Beds24 신호(차단 · 요금 · 예약 동기화) + **놓친 변경 따라잡기**는 판매 캘린더와 같은 공용 장치로(2026-10-09).
+  // 연결이 끊겼다 다시 붙거나 · 네트워크가 돌아오거나 · 1분 넘게 가려졌던 화면이 다시 보이면 한 번 다시 읽는다 —
+  // 예전엔 폰을 잠갔다 열면 그 사이 들어온 예약이 다음 변경 · 새로고침까지 안 보였다.
+  useBeds24LiveRefresh(props.organizationId);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const channelName = useMemo(
@@ -127,6 +131,7 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
       }, 250);
     };
 
+    let wasDisconnected = false;
     const channel = supabase
       .channel(channelName)
       .on("postgres_changes", {
@@ -145,21 +150,15 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
       }, () => {
         scheduleRefresh();
       })
-      .subscribe();
-
-    // 차단·요금 등 Beds24 쪽 변경 — 서버가 동기화 뒤 보내는 신호(`src/lib/beds24-live.ts`).
-    // 예약 변경도 이 신호가 오지만 위 구독과 같은 `scheduleRefresh` 라 한 번만 다시 읽는다.
-    // private 채널 — 구독 전에 사용자 JWT 를 실시간 연결에 싣는다.
-    let disposed = false;
-    const beds24Channel = supabase
-      .channel(beds24LiveTopic(props.organizationId), BEDS24_LIVE_CHANNEL_OPTIONS)
-      .on("broadcast", { event: BEDS24_LIVE_EVENT }, () => {
-        scheduleRefresh();
+      .subscribe((status) => {
+        // 이 구독이 끊겼다 **다시** 붙으면 그 사이 예약 · 메모 변경을 놓쳤을 수 있다 — 한 번 다시 읽는다.
+        if (status === "SUBSCRIBED") {
+          if (wasDisconnected) scheduleRefresh();
+          wasDisconnected = false;
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          wasDisconnected = true;
+        }
       });
-    const subscribeBeds24 = () => {
-      if (!disposed) beds24Channel.subscribe();
-    };
-    void supabase.realtime.setAuth().then(subscribeBeds24, subscribeBeds24);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && pendingRefreshRef.current) {
@@ -170,13 +169,11 @@ export function MobileCalendarLiveView(props: MobileCalendarLiveViewProps) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      disposed = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
       }
       void supabase.removeChannel(channel);
-      void supabase.removeChannel(beds24Channel);
     };
   }, [channelName, props.organizationId, router]);
 

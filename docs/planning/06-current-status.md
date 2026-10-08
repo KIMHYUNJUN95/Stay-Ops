@@ -9,6 +9,11 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-09 — 일반 예약 캘린더: 놓친 변경 따라잡기
+
+- 모바일 예약 캘린더(`/mobile/calendar`)의 Beds24 실시간 구독을 판매 캘린더와 같은 공용 `useBeds24LiveRefresh` 로 — 연결이 끊겼다 다시
+  붙거나 · 네트워크 복귀 · 1분 넘게 가려졌던 화면이 다시 보이면 한 번 다시 읽는다(폰을 잠갔다 열면 그 사이 예약이 안 보이던 것). (`15`)
+
 ## 2026-10-09 — 앱 이름 StayOps → Foldy
 
 - 사람에게 보이는 이름 전부 교체: 화면 문구(ko/ja/en) · 워드마크 · 페이지 제목 · PWA 매니페스트 · 앱 표시 이름(iOS · Android · Capacitor) ·
