@@ -24,7 +24,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 ## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
 
 - 로고 시안 20종 · 이름 후보를 디자인 캔버스로 만들고(보관: https://claude.ai/artifact/RVnjFAhUmmZ2CYndfL5e1h) 사용자가 13번 「접힌 리넨」을
-  골랐다(흰 줄 없는 판). 회색 「열린 문」을 대체.
+  골랐다(맨 아래 막대 흰 줄 있는 원본 — 첫 교체 때 빠뜨려 같은 날 다시 넣고 `STATIC_CACHE` v4). 회색 「열린 문」을 대체.
 - `scripts/dev/generate-app-icons.mjs` 를 벡터 원본 기준으로 다시 써서 PWA `public/icons/*` · `favicon.ico` · iOS 앱 아이콘 · 시작 화면 ·
   Android `mipmap-*` · 적응형(라벤더 배경 + 막대 전경) · Android 12 시작 화면 아이콘 · 연결 실패 화면 · 스토어 원본을 한 번에 생성,
   `gen-splash.mjs` 로 iOS PWA 시작 이미지도 다시. Android 시작 화면 아이콘 원 색 `#8F8D8D` → `#EFE7FF`(`styles.xml`).

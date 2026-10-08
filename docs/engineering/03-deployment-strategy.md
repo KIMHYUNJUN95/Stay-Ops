@@ -222,7 +222,7 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 
 - **원본 = 「접힌 리넨」 로고(2026-10-09 교체)** — 라벤더(`#EFE7FF`) 바탕 위 보라 3톤 둥근 막대 세 겹. 벡터 정의가
   `scripts/dev/generate-app-icons.mjs` 안의 `BG` · `MARK` 에 있고, 돌리면 원본 SVG `public/brand/logo.svg`(바탕 포함) ·
-  `logo-mark.svg`(막대만)도 같이 써 준다. 시안 20종은 디자인 캔버스에 그대로 보관(13 Folded Linen 의 흰 줄 없는 판이 채택안).
+  `logo-mark.svg`(막대만)도 같이 써 준다. 시안 20종은 디자인 캔버스에 그대로 보관(채택안 = 13 Folded Linen 원본 그대로 — 맨 아래 막대에 흰 줄(접힌 자국) 있음).
   `node scripts/dev/generate-app-icons.mjs` → `node scripts/gen-splash.mjs` 순서로 돌리면 다음을 모두 다시 만든다:
   PWA `public/icons/*`(192 · 512 둥근 네모 · maskable 512 · apple-touch 180) · `public/favicon.ico`(16/32/48),
   iOS `AppIcon`(1024, 알파 없음) · `Splash`, Android `mipmap-*`(옛 둥근 네모 · 원형 · 적응형 = 라벤더 배경 층 + 막대 72% 전경) ·

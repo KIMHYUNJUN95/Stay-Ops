@@ -15,7 +15,7 @@
  *     self-corrects to fresh within a moment. Client-side (RSC) navigations inside the running app
  *     are NOT touched by this handler, so in-app data stays live as before.
  * Bump the cache names to invalidate old caches on deploy. */
-const STATIC_CACHE = "stayops-static-v3"; // v3 (2026-10-09): 로고 교체 — /icons 는 cache-first 라 올려야 새 아이콘이 보인다
+const STATIC_CACHE = "stayops-static-v4"; // v3·v4 (2026-10-09): 로고 교체 · 흰 줄 복원 — /icons 는 cache-first 라 올려야 새 아이콘이 보인다
 const NAV_CACHE = "stayops-nav-v2";
 const OFFLINE_URL = "/offline";
 // 오프라인 화면이 쓰는 앱 아이콘. 네트워크 없이 뜨는 화면이라 **함께 프리캐시해야** 한다 —
