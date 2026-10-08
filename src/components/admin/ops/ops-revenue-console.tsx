@@ -27,6 +27,7 @@ import {
   type RevenueRange,
 } from "@/lib/ops-revenue";
 import type { OpsRevenueData } from "@/lib/ops-revenue-server";
+import { compareHref } from "./ops-revenue-compare";
 import "./ops-revenue.css";
 
 /**
@@ -351,6 +352,10 @@ export function OpsRevenueConsole({
               {key === "report" ? copy.tabReport : copy.tabMatrix}
             </button>
           ))}
+          {/* 비교(2026-10-08)는 따로 된 화면 — 지금 보던 기간이 A, 그 전년 같은 기간이 B 로 열린다. */}
+          <Link className="orv__tablink" href={compareHref({ mode: data.mode, range: data.range }, { mode: data.mode, range: data.previousRange }, [])} role="tab">
+            {copy.tabCompare}
+          </Link>
         </div>
         {tab === "matrix" && (
           <div className="orv__mxctl">

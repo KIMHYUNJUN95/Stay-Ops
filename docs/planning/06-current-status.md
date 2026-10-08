@@ -16,6 +16,12 @@ and the major mobile/admin operations modules are implemented and being hardened
   `dictionary.auth.console.entry*Mobile`(ko/ja/en) — 「로그인하고 업무를 시작하세요」. PC 는 그대로. `src/app/auth/login/page.tsx`.
 - 출시 체크리스트 · 진행: `17-app-release-plan.md`. 심사 자료: `18-store-review-kit.md`.
 
+## 2026-10-08 — 매출 비교(A vs B) 화면
+
+- `/admin/ops/revenue/compare`(매출 화면 탭 「비교」) — A · B 기간(월 · 연 · 기수 · 주 · 직접, 「전년 같은 기간」 · 「바로 전 기간」), 합계 건물 칩,
+  01 총매출(눈금자 · 분해) · 02 증감 다이얼 + 요점 · 지표 넷 · 03 차이 분해 브리지 · 04 건물별 맞대기, 링크 공유, Excel · PDF, 실시간.
+  공용 `AdminMonthPicker` `onSelect`. 검증: lint · test(978) · build 통과, **화면은 아직 눈으로 보지 않았다**(로그인 필요). 34번 「매출 비교」.
+
 ## 2026-10-08 — 매출 · 가동률 화면 실시간 반영
 
 - 두 화면에 `<Beds24LiveRefresh>` 를 붙였다 — 예약 웹훅 · 정합성 · 수기 예약 신호가 오면 새로고침 없이 다시 읽는다(판매 캘린더와 같은 방식).

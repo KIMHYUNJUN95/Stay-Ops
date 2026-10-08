@@ -209,6 +209,38 @@ roomId 를 같은 이름으로 합친다.
 파일: `src/app/admin/ops/revenue/page.tsx` · `actions.ts`(내보내기) · `src/components/admin/ops/ops-revenue-console.tsx` ·
 `ops-revenue.css` · `src/lib/ops-revenue.ts` · `src/lib/ops-revenue-server.ts` · i18n `opsRevenue`(ko · ja · en).
 
+## 매출 비교 (2026-10-08 구현 — 시안 「매출 비교」 1번 v4)
+
+`/admin/ops/revenue/compare` — 매출 화면의 세 번째 탭 「비교」(링크: 매출 화면에서 보던 기간이 A, 그 전년 같은 기간이 B). 게이트는
+매출과 같다(`requireOpsAdminPage("revenue")`, 내보내기 `canAccessOpsAdmin`). 시안: claude.ai 디자인 캔버스 「매출 비교 시안」 1번 —
+대결형 → 다크(사용자 「컬러가 너무 달라졌다」) → **아이보리 유지 + 계기판 · 고급 리포트 톤(v4)** 으로 확정, 「이대로 구현」.
+
+**숫자는 매출 화면과 같은 칸이다** — `getOpsRevenueCompareData`(같은 읽기 · 같은 식 · 문 열기 전 규칙은 달마다)가 A · B 기간을 건물별 칸으로
+내고, 합계에 넣을 건물 · 차이 분해는 화면이 `src/lib/ops-revenue-compare.ts`(순수, 테스트 `ops-revenue-compare.test.ts`)로 한다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| 기간 | A · B 각각 월 · 연 · 기수 · 주 · 직접(매출과 같은 모드 · 같은 바로잡기). 월은 공용 `AdminMonthPicker` 의 `onSelect`(05번), 직접은 `AdminDateRangePicker`. 빠른 버튼 「전년 같은 기간」(B = A 의 1년 전) · 「바로 전 기간」(B = A 를 한 칸 앞으로) |
+| 주소 | `?am=&af=&at=&bm=&bf=&bt=&ex=` — 고른 비교 · 뺀 건물이 주소에 남아 「링크 복사」로 공유. 없으면 A = 지난달, B = 그 전년 같은 달 |
+| 합계 건물 | 매출 화면과 같은 칩 · 같은 기본값(오쿠보A · 사노 제외). 두 기간에 같은 건물 묶음을 쓴다 |
+| 건물 나누기 | 두 기간 모두 판 건물 = **기존**, A 에만 = **새로 판 건물**, B 에만 = **판매가 없어진 건물**(판매 박이나 매출이 있으면 「판 것」) |
+| 차이 분해(브리지) | B 합계 → 기존 건물 변화 → 새로 판 건물(큰 순, 3곳 넘으면 2곳 + 「그 밖 신규 N곳」) → 판매가 없어진 건물(빼는 몫) → A 합계. 몫 0 은 뺀다. 마지막 누적 = A 합계(테스트) |
+| 브리지 눈금 | 작은 차이가 보이게 **누적 최솟값 근처부터**(1 · 2 · 5 단위, 합계 막대 아래는 물결 = 생략, 범례에 「눈금은 ¥… 부터」). 최솟값이 최댓값의 35% 아래면 0 부터 |
+| 요점 세 줄 | ① 새로 판 건물의 몫 ② 기존 건물의 단가 · 가동률 변화 ③ 기존 건물 중 가장 많이 늘어난(없으면 가장 많이 줄어든) 건물. 구성이 같으면 「차이는 전부 같은 건물끼리」 |
+| 증감 다이얼 | −50% ~ +50% 반원 눈금(넘으면 끝에 멈추고 숫자는 그대로) |
+
+화면(위에서 아래로): 머리(`LIVE` · 세리프 제목 「A · B 대비 ±%, 기존 건물은 ±%」 · 링크 복사 · Excel/PDF) → A · B 고르기 → 합계 건물 칩 →
+**01 총매출**(남색 판 · 큰 숫자 · 0 ~ 최댓값 정밀 눈금자 위 A · B 표식 · B / 새로 판 건물 / 기존 / 없어진 건물 분해) · **02 증감**(다이얼 + 요점) →
+지표 카드 넷(OCC · ROOM NIGHTS · ADR · RevPAR — A · B 가는 막대 · 증감) → **03 무엇이 차이를 만들었나**(브리지 — 빗금 받침 · 누적 점선 ·
+금액 칩 · 「B 대비 ±%」) → **04 건물별 맞대기**(매출 · 가동률 · ADR · RevPAR 전환, A 큰 순, `NEW` · `판매 없음` 표시). 금액은 전부 엔 단위
+전체 숫자. 예약 신호가 오면 새로고침 없이 다시 읽는다. 내보내기 시트 둘: 비교 요약(지표 × A · B · 차이 · 증감) · 건물별.
+
+아직 없는 것: 「+ C 더하기」(세 기간 이상) · A 와 B 에 다른 건물 묶음 · 모바일 화면. 시안 2번(기수 겹쳐 보기) · 3번(건물끼리)은 보류.
+
+파일: `src/app/admin/ops/revenue/compare/page.tsx` · `actions.ts` · `src/components/admin/ops/ops-revenue-compare.{tsx,css}` ·
+`src/lib/ops-revenue-compare.ts` · `src/lib/ops-revenue-server.ts`(`getOpsRevenueCompareData`, 공용 `createRevenueSummarizer`) ·
+i18n `opsRevenueCompare` + `opsRevenue.tabCompare`(ko · ja · en).
+
 ## 가동률 화면 (2026-10-07 구현 — 시안 A · B · C)
 
 `/admin/ops/occupancy` — 게이트는 운영 관리자(`requireOpsAdminPage("occupancy")`, 내보내기 액션도 `canAccessOpsAdmin`).

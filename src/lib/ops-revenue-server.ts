@@ -170,12 +170,7 @@ export type OpsRevenueCompareData = {
   /** 건물 → 칸. 기간을 달로 잘라 요약한 합(문 열기 전 규칙은 달마다). */
   aCells: OpsRevenueCells;
   bCells: OpsRevenueCells;
-  /** 두 기간을 덮는 월별 추이(최대 24달, 끝 = 늦은 쪽 기간의 마지막 달). */
-  trendMonths: string[];
-  trendCells: Record<string, OpsRevenueCells>;
 };
-
-const COMPARE_TREND_MAX = 24;
 
 /**
  * 매출 비교 — 두 기간 A · B 를 같은 읽기 · 같은 식으로(2026-10-08, 시안 「매출 비교」 1번 v4).
@@ -188,14 +183,7 @@ export async function getOpsRevenueCompareData(
   const today = toJstDateString(new Date());
   const aPieces = splitByMonth(args.a.range);
   const bPieces = splitByMonth(args.b.range);
-  const firstMonth = [args.a.range.from, args.b.range.from].sort()[0].slice(0, 7);
-  const lastMonth = [args.a.range.to, args.b.range.to].sort()[1].slice(0, 7);
-  const trendMonths: string[] = [];
-  for (let month = firstMonth; month <= lastMonth; month = shiftMonthKey(month, 1)) trendMonths.push(month);
-  const trimmed = trendMonths.slice(-COMPARE_TREND_MAX);
-  const monthPiece = (month: string): Piece => ({ endExclusive: nextDay(lastDayOfMonth(month)), start: `${month}-01` });
-
-  const everything: Piece[] = [...aPieces, ...bPieces, ...trimmed.map(monthPiece)];
+  const everything: Piece[] = [...aPieces, ...bPieces];
   const window = {
     endExclusive: everything.reduce((max, piece) => (piece.endExclusive > max ? piece.endExclusive : max), everything[0].endExclusive),
     start: everything.reduce((min, piece) => (piece.start < min ? piece.start : min), everything[0].start),
@@ -206,9 +194,6 @@ export async function getOpsRevenueCompareData(
     for (const piece of pieces) for (const [key, cell] of summarize(piece).properties) addCell(out.get(key) ?? setNew(out, key), cell);
     return Object.fromEntries(out) as OpsRevenueCells;
   };
-  const trendCells: Record<string, OpsRevenueCells> = {};
-  for (const month of trimmed) trendCells[month] = Object.fromEntries(summarize(monthPiece(month)).properties);
-
   const excluded = new Set(defaultSalesExcluded(inputs.properties));
   return {
     a: args.a,
@@ -221,8 +206,6 @@ export async function getOpsRevenueCompareData(
       roomCount: inputs.rooms.filter((room) => room.propertyName === name && room.inCatalog).length,
     })),
     today,
-    trendCells,
-    trendMonths: trimmed,
   };
 }
 

@@ -99,6 +99,8 @@
 .adm .orv__tabs { display: inline-flex; gap: 2px; border-bottom: 1px solid var(--line); }
 .adm .orv__tabs button { height: 36px; padding: 0 16px; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 800; color: var(--adm-muted); border-bottom: 2.5px solid transparent; margin-bottom: -1px; cursor: pointer; }
 .adm .orv__tabs button.on { color: var(--ink); border-bottom-color: var(--adm-primary); }
+.adm .orv__tabs .orv__tablink { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; font-size: 13px; font-weight: 800; color: var(--adm-muted); text-decoration: none; border-bottom: 2.5px solid transparent; margin-bottom: -1px; }
+.adm .orv__tabs .orv__tablink:hover { color: var(--ink-soft); }
 .adm .orv__mxctl { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* 카드 */
