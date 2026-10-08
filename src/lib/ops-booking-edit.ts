@@ -148,3 +148,23 @@ export function buildBeds24BookingUpdate(
   if (changes.totalPrice !== undefined && changes.totalPrice !== null) payload.price = changes.totalPrice;
   return payload;
 }
+
+/**
+ * 수정을 보낸 뒤 **다시 읽은 예약**이 보낸 값과 같은가(2026-10-08 점검 — Beds24 는 받기만 하고 안 바꾼 것도 성공으로 답할 수
+ * 있다). 숙박 날짜 · 인원 · 금액만 본다 — 이름 · 전화 · 메모는 Beds24 가 공백 · 형식을 손봐 정상 수정도 다르게 읽힐 수 있다.
+ * @returns 안 맞는 항목 코드(`arrival` · `departure` · `numAdult` · `numChild` · `price`). 비면 맞다.
+ */
+export function diffBookingReadback(payload: Record<string, unknown>, booking: Record<string, unknown>): string[] {
+  const mismatched: string[] = [];
+  for (const key of ["arrival", "departure"] as const) {
+    if (payload[key] === undefined) continue;
+    if (String(booking[key] ?? "").slice(0, 10) !== String(payload[key])) mismatched.push(key);
+  }
+  for (const key of ["numAdult", "numChild", "price"] as const) {
+    if (payload[key] === undefined) continue;
+    const sent = Number(payload[key]);
+    const read = Number(booking[key] ?? (key === "numChild" ? 0 : Number.NaN));
+    if (!Number.isFinite(read) || Math.abs(read - sent) > 0.5) mismatched.push(key);
+  }
+  return mismatched;
+}

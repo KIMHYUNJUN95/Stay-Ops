@@ -43,6 +43,7 @@ export type ReservationEditCopy = {
   reChannelPriceNote: string;
   reErrNoChanges: string;
   reErrCancelled: string;
+  reErrNotApplied: string;
   mbGuest: string;
   mbEmail: string;
   mbPhone: string;
@@ -113,6 +114,8 @@ export function reservationEditErrorText(
       return copy.mbErrNoActiveUnit.replace("{dates}", list);
     case "cancelled":
       return copy.reErrCancelled;
+    case "not_applied":
+      return copy.reErrNotApplied;
     case "forbidden":
       return copy.rcErrForbidden;
     case "not_found":

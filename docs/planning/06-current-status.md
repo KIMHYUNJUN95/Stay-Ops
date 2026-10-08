@@ -27,6 +27,11 @@ and the major mobile/admin operations modules are implemented and being hardened
   `dictionary.auth.console.entry*Mobile`(ko/ja/en) — 「로그인하고 업무를 시작하세요」. PC 는 그대로. `src/app/auth/login/page.tsx`.
 - 출시 체크리스트 · 진행: `17-app-release-plan.md`. 심사 자료: `18-store-review-kit.md`.
 
+## 2026-10-08 — 판매 캘린더 쓰기 로그 점검 · 예약 취소 · 수정 되읽기 대조
+
+- 가격 · 차단 로그는 DB · Beds24 실시간 대조 모두 일치(거짓 성공 0). 예약 취소 · 수정은 POST 성공만 보고 성공으로 처리하던 것을
+  다시 읽어 대조하게 바꿈 — 반영 안 됐으면 `not_applied` 오류(ko/ja/en) + 우리 표를 Beds24 값으로 맞춤. 33번 「예약 수정」 · 「예약 취소」.
+
 ## 2026-10-08 — 객실 × 월 집계 표(속도 2단계)
 
 - 마이그레이션 `202610080002` 운영 적용(표 2 · 트리거 · 크론 `ops-stats-tick` · `ops-stats-daily` · service_role grant). 매출 · 가동률 · 비교 서버 읽기가

@@ -11,6 +11,7 @@ import {
   postBeds24BookingCancel,
   postBeds24BookingUpdate,
 } from "@/lib/beds24/calendar-client";
+import { resolveReservationStatusFromBeds24Record } from "@/lib/beds24/reservation-status";
 import { processBeds24WebhookBooking } from "@/lib/beds24/process-webhook-booking";
 import { activateBeds24Cooldown, getBeds24Cooldown } from "@/lib/beds24/sync-locks";
 import { isActiveUnitMinStay } from "@/lib/ops-gap-detection";
@@ -53,6 +54,7 @@ import type { CellHistory } from "@/lib/ops-price-history";
 import {
   addedNights,
   buildBeds24BookingUpdate,
+  diffBookingReadback,
   validateBookingEdit,
   type BookingEditChanges,
   type BookingEditDraft,
@@ -941,6 +943,8 @@ export type ReservationEditResult =
         | "occupied"
         | "no_active_unit"
         | "beds24_failed"
+        /** Beds24 가 받았지만 다시 읽으니 날짜 · 인원 · 금액이 안 바뀌었다(2026-10-08). `detail` = 항목 코드. */
+        | "not_applied"
         | "cooldown";
       /** 겹치거나 판매 유닛이 없는 밤. 화면이 날짜를 적어 준다. */
       conflictDates?: string[];
@@ -1114,9 +1118,10 @@ export async function submitReservationEdit(args: {
     if (locked.length > 0) return { conflictDates: locked, error: "no_active_unit", ok: false };
   }
 
+  const updatePayload = buildBeds24BookingUpdate(bookingId, changes);
   let posted: Awaited<ReturnType<typeof postBeds24BookingUpdate>>;
   try {
-    posted = await postBeds24BookingUpdate(buildBeds24BookingUpdate(bookingId, changes));
+    posted = await postBeds24BookingUpdate(updatePayload);
   } catch (error) {
     if (error instanceof Beds24HttpError && error.isRateLimit) {
       await activateBeds24Cooldown(supabase, { reason: "rate_limit", resetInSec: error.resetInSec });
@@ -1127,11 +1132,14 @@ export async function submitReservationEdit(args: {
   if ("skipped" in posted) return { detail: posted.skipped, error: "beds24_failed", ok: false };
   if (!posted.ok) return { detail: posted.error, error: "beds24_failed", ok: false };
 
-  // **다시 읽어 우리 표를 맞춘다** — 예약 웹훅과 같은 처리기라 형식이 갈리지 않는다.
-  // 실패해도 Beds24 에는 들어갔으므로 실패로 돌리지 않는다(웹훅·정합성이 곧 맞춘다).
+  // **다시 읽어 확인하고 우리 표를 맞춘다** — 예약 웹훅과 같은 처리기라 형식이 갈리지 않는다.
+  // 다시 읽은 날짜 · 인원 · 금액이 보낸 값과 다르면 「반영 안 됨」으로 돌린다(2026-10-08 — Beds24 는 받기만 하고 안 바꾼 것도
+  // 성공으로 답할 수 있다). 다시 읽기 자체가 안 되면(네트워크) Beds24 가 받아들인 대로 성공 — 웹훅 · 정합성이 곧 맞춘다.
+  let notApplied: string[] = [];
   try {
     const fetched = await fetchBeds24BookingById(bookingId);
     if (!("skipped" in fetched) && fetched.ok) {
+      notApplied = diffBookingReadback(updatePayload, fetched.booking);
       await processBeds24WebhookBooking({
         organizationIdDefault: session.organization.id,
         payload: fetched.booking,
@@ -1143,6 +1151,10 @@ export async function submitReservationEdit(args: {
   }
 
   revalidateOpsCalendars();
+  if (notApplied.length > 0) {
+    console.error("[ops/reservation-edit] Beds24 readback mismatch", { bookingId, fields: notApplied });
+    return { detail: notApplied.join(","), error: "not_applied", ok: false };
+  }
   return { ok: true };
 }
 
@@ -1156,7 +1168,9 @@ export type CancelReservationResult =
         | "already_cancelled"
         | "no_booking_id"
         | "beds24_failed"
-        | "cooldown";
+        | "cooldown"
+        /** Beds24 가 받았지만 다시 읽으니 취소가 아니다(2026-10-08). */
+        | "not_applied";
       detail?: string;
     };
 
@@ -1200,7 +1214,21 @@ export async function submitReservationCancel(args: {
   if ("skipped" in result) return { detail: result.skipped, error: "beds24_failed", ok: false };
   if (!result.ok) return { detail: result.error, error: "beds24_failed", ok: false };
 
-  // Beds24 가 받아들였으므로 화면을 바로 바꾼다. 웹훅이 오면 같은 값으로 덮인다.
+  // **다시 읽어 정말 취소됐는지 본다**(2026-10-08 — 응답만 믿지 않는다). 취소가 아니면 우리 표를 Beds24 그대로 맞추고
+  // 「반영 안 됨」. 다시 읽기 자체가 안 되면(네트워크) Beds24 가 받아들인 대로 화면을 바꾼다 — 웹훅이 오면 같은 값으로 덮인다.
+  let readback: Record<string, unknown> | null = null;
+  try {
+    const fetched = await fetchBeds24BookingById(bookingId);
+    if (!("skipped" in fetched) && fetched.ok) readback = fetched.booking;
+  } catch (error) {
+    console.error("[ops/reservation-cancel] readback failed", error);
+  }
+  if (readback && resolveReservationStatusFromBeds24Record(readback) !== "cancelled") {
+    console.error("[ops/reservation-cancel] Beds24 readback is not cancelled", { bookingId });
+    await processBeds24WebhookBooking({ organizationIdDefault: session.organization.id, payload: readback, supabase });
+    revalidateOpsCalendars();
+    return { error: "not_applied", ok: false };
+  }
   await supabase
     .from("reservations")
     .update({ status: "cancelled", updated_at: new Date().toISOString() })

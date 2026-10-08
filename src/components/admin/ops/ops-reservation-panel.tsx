@@ -69,6 +69,7 @@ export type ReservationCardCopy = ReservationEditCopy & {
   rcErrNoBookingId: string;
   rcErrBeds24: string;
   rcErrCooldown: string;
+  rcErrNotApplied: string;
   rpTitle: string;
   rpLoading: string;
   rpLoadFailed: string;
@@ -128,6 +129,8 @@ export function reservationCancelErrorText(copy: ReservationCardCopy, result: Ex
       return copy.rcErrNoBookingId;
     case "cooldown":
       return copy.rcErrCooldown;
+    case "not_applied":
+      return copy.rcErrNotApplied;
     default:
       return copy.rcErrBeds24;
   }

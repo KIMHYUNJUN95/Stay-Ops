@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addedNights,
   buildBeds24BookingUpdate,
+  diffBookingReadback,
   diffBookingEdit,
   validateBookingEdit,
   type BookingEditDraft,
@@ -122,5 +123,19 @@ describe("buildBeds24BookingUpdate", () => {
 
   it("금액은 price 로", () => {
     expect(buildBeds24BookingUpdate("1", { totalPrice: 60000 })).toEqual({ id: 1, price: 60000 });
+  });
+});
+
+describe("diffBookingReadback — 수정 뒤 다시 읽은 값 대조 (2026-10-08)", () => {
+  const payload = { arrival: "2026-11-01", departure: "2026-11-04", id: 1, notes: "x", numAdult: 2, price: 45000 };
+  it("같으면 빈 목록 — 이름 · 메모는 보지 않는다", () => {
+    expect(diffBookingReadback(payload, { arrival: "2026-11-01", departure: "2026-11-04", notes: "다름", numAdult: 2, price: "45000.00" })).toEqual([]);
+  });
+  it("안 바뀐 항목만 돌려준다", () => {
+    expect(diffBookingReadback(payload, { arrival: "2026-10-30", departure: "2026-11-04", numAdult: 1, price: 45000 })).toEqual(["arrival", "numAdult"]);
+  });
+  it("보내지 않은 항목은 안 본다 · 어린이 빈칸은 0", () => {
+    expect(diffBookingReadback({ id: 1, numChild: 0 }, { numAdult: 9 })).toEqual([]);
+    expect(diffBookingReadback({ id: 1, price: 1000 }, {})).toEqual(["price"]);
   });
 });
