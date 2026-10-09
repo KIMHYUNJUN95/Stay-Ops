@@ -146,7 +146,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 
 | # | 항목 | 담당 | 상태 | 비고 |
 | --- | --- | --- | --- | --- |
-| C1 | **도메인 연결 · 주소 교체** — Vercel 도메인, Supabase 로그인 리디렉트, Google OAuth 승인 도메인, `NEXT_PUBLIC_APP_URL`, 약관 · 지원 URL | 🤝 | [ ] | A4 이후 |
+| C1 | **도메인 연결 · 주소 교체** — Vercel 도메인, Supabase 로그인 리디렉트, Google OAuth 승인 도메인, `NEXT_PUBLIC_APP_URL`, 약관 · 지원 URL | 🤝 | [ ] | A4 이후. **스토어 제출(C9) 전에 끝낸다** — 앱 바이너리에 주소가 박히고 스토어 등록에 방침 URL 이 들어가므로. 바꿀 곳(2026-10-09 정리): 👤 Vercel Domains 에 도메인 추가 + DNS CNAME · Supabase **Site URL** + Redirect URLs 에 `https://새도메인/auth/callback` 추가 · Google 인증 플랫폼 **브랜딩**의 홈페이지 · 개인정보처리방침 · 서비스 약관 링크 + 승인된 도메인 추가 / 🤖 `capacitor.config.ts` `serverUrl` · `capacitor-www/index.html` `APP_URL` · GitHub Actions 워크플로 5개(`.github/workflows/*`) · pg_cron 호출 주소 3곳(새 마이그레이션으로 — 적용된 `202609300004` · `202610060003` · `202610080002` 는 고치지 않는다) · `NEXT_PUBLIC_APP_URL`(Vercel 환경 변수). `stay-ops-two.vercel.app` 은 도메인을 붙여도 계속 열리므로 한 번에 안 바꿔도 끊기지 않는다 |
 | C2 | **앱 링크 검증 파일** — iOS `apple-app-site-association`, Android `assetlinks.json` | 🤖 | [ ] | 링크를 누르면 앱이 열리게 + B2 로그인 복귀 |
 | C3 | **Apple 로그인** | 🤝 | [ ] | Google 로그인이 있으므로 iOS 필수(Apple 4.8). Supabase Apple provider + Services ID · 키 |
 | C4 | **서명 · 번들 ID(iOS) · 패키지명(Android)** | 🤝 | [ ] | 한 번 정하면 못 바꿈. **ID 확정 `com.harutokyo.foldy`(2026-10-09)** — 남은 것: 서명 키 |
