@@ -293,7 +293,7 @@ Play 에 올릴 AAB 는 **업로드 키**로 서명한다(Play App Signing 이 �
 **클라우드 관리 서명**(`-allowProvisioningUpdates`)이 배포 인증서 · 프로필을 알아서 만든다.
 
 준비(Apple Developer 가입 A2 뒤 한 번):
-1. developer.apple.com → Identifiers 에 번들 ID `com.harutokyo.stayops` 등록(앱 ID 를 바꾸기로 하면 그 값).
+1. developer.apple.com → Identifiers 에 번들 ID `com.harutokyo.foldy` 등록(`capacitor.config.ts` appId 와 같은 값).
 2. App Store Connect → 앱 → 새 앱(이름 Foldy, 번들 ID 위 값, SKU 아무 값) — 업로드 대상이 있어야 한다.
 3. App Store Connect → Users and Access → Integrations → **App Store Connect API** → 키 생성(역할 **Admin** — 클라우드 서명에 필요) →
    `AuthKey_XXXX.p8` 내려받기(한 번만 받을 수 있다), Key ID · Issuer ID 기록.
