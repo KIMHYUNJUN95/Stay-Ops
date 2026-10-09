@@ -32,13 +32,15 @@ export function findBackTarget(urls: readonly (string | null)[], index: number):
 }
 
 /**
- * 스와이프를 받는 화면인가 — 메뉴(탭 · 사이드 메뉴)의 첫 화면은 「뒤」가 없다(네이티브 탭 앱과 같다). 그 아래 화면만 받는다.
- * `/mobile/notifications` 처럼 메뉴가 아닌 곳에서 여는 화면은 받는다.
+ * 모바일 앱 화면인가(`/mobile` 과 그 아래 — 쿼리 · 해시가 붙어도 된다). 스와이프는 이런 화면에서만 받고, 돌아갈 곳도 이런 화면일
+ * 때만 간다(로그인 · 온보딩 · 계정으로 밀려 나가지 않게).
+ *
+ * 메뉴 첫 화면(홈 · 청소 · 요청 …)도 받는다(2026-10-09 사용자 결정). 원래는 「뒤가 없는 화면」으로 막았는데, 사용자가 실제로
+ * 머무는 화면 대부분이 메뉴 첫 화면이라 「안 되는 화면이 더 많다」가 됐고, Android 뒤로가기 버튼은 거기서도 이전 화면으로 가서
+ * 기기마다 달랐다. 이제 돌아갈 곳(`findBackTarget`)이 있으면 어디서든 받는다 — 앱을 막 열어 이전 화면이 없을 때만 받지 않는다.
  */
-export function isSwipeBackScreen(pathname: string, rootPaths: ReadonlySet<string>): boolean {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  if (!path.startsWith("/mobile")) return false;
-  return !rootPaths.has(path);
+export function isSwipeBackScreen(path: string): boolean {
+  return path === "/mobile" || /^\/mobile[/?#]/.test(path);
 }
 
 /** 방향 잠금 — 손가락이 이만큼(px) 움직이기 전에는 가로 · 세로를 정하지 않는다. */

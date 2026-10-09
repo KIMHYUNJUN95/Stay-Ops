@@ -207,13 +207,6 @@ function computeContentOffset(raw: number): number {
 // session (the shell is rendered per page, so this Map is the only thing that persists).
 const SCROLL_POSITIONS = new Map<string, number>();
 
-/**
- * 메뉴(하단 탭 · 사이드 메뉴)의 첫 화면 — 「뒤」가 없으므로 화면 스와이프 뒤로가기를 받지 않는다(네이티브 탭 앱과 같다).
- * 그 아래 화면(상세 · 하위 목록 · 작성)과 메뉴 밖에서 여는 화면(알림)만 받는다. docs/product/16-mobile-navigation.md
- */
-const SWIPE_BACK_ROOTS: ReadonlySet<string> = new Set(
-  [...mobileSidebarNavigation, ...mobileOpsAdminNavigation, mobileNavBugs].map((item) => item.href),
-);
 
 
 export function MobileShell({
@@ -530,7 +523,7 @@ export function MobileShell({
     const ownUrl = getHistoryUrl(ownIndex);
     const capture = trackScreen(main);
     const detach = attachSwipeBack({
-      isSwipeScreen: () => isSwipeBackScreen(window.location.pathname, SWIPE_BACK_ROOTS),
+      isSwipeScreen: () => isSwipeBackScreen(window.location.pathname),
       main,
       surface,
     });

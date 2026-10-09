@@ -36,18 +36,17 @@ describe("findBackTarget", () => {
 });
 
 describe("isSwipeBackScreen", () => {
-  const roots = new Set(["/mobile", "/mobile/cleaning", "/mobile/requests"]);
-  it("menu roots have no back", () => {
-    expect(isSwipeBackScreen("/mobile", roots)).toBe(false);
-    expect(isSwipeBackScreen("/mobile/cleaning", roots)).toBe(false);
-    expect(isSwipeBackScreen("/mobile/cleaning/", roots)).toBe(false);
+  it("every /mobile screen swipes back, menu roots included (2026-10-09)", () => {
+    expect(isSwipeBackScreen("/mobile")).toBe(true);
+    expect(isSwipeBackScreen("/mobile/cleaning")).toBe(true);
+    expect(isSwipeBackScreen("/mobile/cleaning/records")).toBe(true);
+    expect(isSwipeBackScreen("/mobile?tab=today")).toBe(true);
+    expect(isSwipeBackScreen("/mobile/notifications?x=1")).toBe(true);
   });
-  it("screens below a root and off-menu screens swipe back", () => {
-    expect(isSwipeBackScreen("/mobile/cleaning/records", roots)).toBe(true);
-    expect(isSwipeBackScreen("/mobile/notifications", roots)).toBe(true);
-  });
-  it("never outside /mobile", () => {
-    expect(isSwipeBackScreen("/account", roots)).toBe(false);
+  it("never outside /mobile (no swiping back into login · onboarding · account)", () => {
+    expect(isSwipeBackScreen("/account")).toBe(false);
+    expect(isSwipeBackScreen("/login?next=/mobile")).toBe(false);
+    expect(isSwipeBackScreen("/mobilex")).toBe(false);
   });
 });
 

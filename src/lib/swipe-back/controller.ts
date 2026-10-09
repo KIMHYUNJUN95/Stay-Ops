@@ -19,7 +19,7 @@
 
 import { clearNavDirection, setNavDirection } from "@/lib/nav-direction";
 import { getBackTarget } from "./history-tracker";
-import { decideCommit, decideLock, settleDuration } from "./history-model";
+import { decideCommit, decideLock, isSwipeBackScreen, settleDuration } from "./history-model";
 import { swipeDebug } from "./debug";
 import { getSnapshot, restoreSnapshotScroll } from "./snapshot-store";
 
@@ -60,7 +60,7 @@ export type SwipeBackOptions = {
   main: HTMLElement;
   /** 손가락을 따라 움직이는 판(폰: 화면 전체, 폴드 · 태블릿: 레일 · 사이드바 오른쪽 본문). */
   surface: HTMLElement;
-  /** 이 화면이 스와이프를 받는 화면인가(메뉴 첫 화면은 아니다). */
+  /** 이 화면이 스와이프를 받는 화면인가(`/mobile` 화면). */
   isSwipeScreen: () => boolean;
 };
 
@@ -297,7 +297,7 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
     reset();
     if (event.touches.length !== 1) return;
     if (dirty) return swipeDebug("start: skip — typed on this screen");
-    if (!isSwipeScreen()) return swipeDebug("start: skip — menu root screen");
+    if (!isSwipeScreen()) return swipeDebug("start: skip — not an app screen");
     if (document.documentElement.hasAttribute("data-pane") || isSplitPaneOpen()) return swipeDebug("start: skip — split pane");
     if (hasOpenOverlay()) return swipeDebug("start: skip — overlay open");
     const touch = event.touches[0];
@@ -306,6 +306,11 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
     if (touch.clientX < SAFARI_EDGE && isIosSafariTab()) return swipeDebug("start: skip — safari edge");
     target = getBackTarget();
     if (!target) return swipeDebug("start: skip — no back target");
+    if (!isSwipeBackScreen(target.url)) {
+      swipeDebug(`start: skip — back leaves the app (${target.url})`);
+      target = null;
+      return;
+    }
     startX = touch.clientX;
     startY = touch.clientY;
     phase = "pending";
@@ -383,7 +388,7 @@ export function attachSwipeBack({ main, surface, isSwipeScreen }: SwipeBackOptio
     idleHandle = 0;
     if (phase !== "idle" || !isSwipeScreen()) return;
     const destination = getBackTarget();
-    if (destination && getSnapshot(destination.index, destination.url)) prepareLayer(destination);
+    if (destination && isSwipeBackScreen(destination.url) && getSnapshot(destination.index, destination.url)) prepareLayer(destination);
   });
 
   surface.addEventListener("touchstart", onTouchStart, { passive: true });
