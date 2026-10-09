@@ -46,7 +46,7 @@
 | ~~화면 문구~~ ✅ 2026-10-09 | `src/lib/i18n.ts`(ko/ja/en 36곳) · 웹 시작 화면 · 헤더 워드마크(「Foldy」) · `src/` 기타 파일 | 3개 언어 함께 교체 완료 |
 | ~~법적 문서 · 스토어 문구~~ ✅ 2026-10-09 | `src/lib/legal-content.ts`(24곳) · `18-store-review-kit.md` · 지원 페이지 · iOS 권한 문구(`*.lproj/InfoPlist.strings`) | 방침 · 약관의 서비스 이름 |
 | **앱 ID / 번들 ID** (`com.harutokyo.stayops`) | `capacitor.config.ts` `appId` · Android 패키지 · iOS 번들 · 앱 스킴 `com.harutokyo.stayops://` · **Supabase Redirect URLs** | **스토어 등록(C4) 후에는 못 바꾼다.** 새 이름에 맞출지 C4 전에 결정 (👤). 회사 도메인 기준이라 그대로 둬도 무방. **2026-10-09 이름 교체 때는 그대로 둠(미결)** |
-| 바깥 서비스의 이름 (👤) | Slack 앱 「StayOps Automation」 · Google OAuth 동의 화면 앱 이름 · Supabase 인증 메일 템플릿 · Vercel 프로젝트/주소 `stay-ops-two` · GitHub 저장소 | 코드 밖이라 각 콘솔에서 바꾼다. 도메인은 C1(자체 도메인) 때 |
+| 바깥 서비스의 이름 (👤) | ✅ Google OAuth 동의 화면(이름 Foldy · 로고 · 홈페이지/방침/약관 링크 · 승인 도메인 `stay-ops-two.vercel.app`, 2026-10-09) · ✅ Supabase 인증 메일(Confirm sign up · Reset password 를 Foldy 3개 언어 문구로, 2026-10-09) · [ ] Slack 앱 「StayOps Automation」 → 「Foldy Automation」 · [ ] Vercel 프로젝트/주소 `stay-ops-two` · GitHub 저장소 | 코드 밖이라 각 콘솔에서 바꾼다. **자체 도메인(C1) 때 Google 동의 화면의 홈페이지 · 방침 · 약관 링크와 승인 도메인도 새 도메인으로** |
 
 ## 0단계 — 계정 · 도메인 (오래 걸리므로 지금 시작)
 
@@ -207,3 +207,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-09 | (이 커밋) | 브랜드 로고 교체 — 「접힌 리넨」(앱 · PWA · 시작 화면 · 스토어 이미지 · favicon), 벡터 원본 `public/brand/logo.svg` |
 | 2026-10-09 | (이 커밋) | 앱 이름 StayOps → Foldy — 화면 문구(ko/ja/en) · 앱 표시 이름 · 법적 문서 · 권한 문구 · 문서 전부 |
 | 2026-10-09 | `7688de1` | 출시 보강 H1~H13 · 네이티브 품질 N13~N16 · N6 원인 수정(오류 화면 3개 언어 · 오프라인 자동 복귀) · 빌드 번호 2 |
+| 2026-10-09 | (이 커밋) | 바깥 서비스 이름 교체 기록 — Google 동의 화면 · Supabase 인증 메일 완료(사용자) |

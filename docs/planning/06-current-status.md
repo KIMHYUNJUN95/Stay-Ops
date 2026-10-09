@@ -29,7 +29,8 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 사람에게 보이는 이름 전부 교체: 화면 문구(ko/ja/en) · 워드마크 · 페이지 제목 · PWA 매니페스트 · 앱 표시 이름(iOS · Android · Capacitor) ·
   iOS 권한 문구 · 연결 실패 화면 · 법적 문서 · 지원 페이지 · 엑셀/PDF · Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · docs.
 - 내부 식별자(쿠키 · 저장소 키 · 앱 ID · 배포 주소 등)는 그대로 — 결정 로그 2026-10-09.
-- 남은 일(👤): Slack 앱 이름 「StayOps Automation」 · Google OAuth 동의 화면 · Supabase 인증 메일 · 앱 ID 결정 · 앱 재설치 확인.
+- 사용자 완료: Google OAuth 동의 화면(이름 · 로고 · 링크) · Supabase 인증 메일 2종(3개 언어 Foldy 문구).
+- 남은 일(👤): Slack 앱 이름 「StayOps Automation」 · 앱 ID 결정 · 앱 재설치 확인.
 
 ## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
 
