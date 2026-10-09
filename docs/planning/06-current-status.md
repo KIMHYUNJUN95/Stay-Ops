@@ -40,7 +40,8 @@ and the major mobile/admin operations modules are implemented and being hardened
   Android `mipmap-*` · 적응형(라벤더 배경 + 막대 전경) · Android 12 시작 화면 아이콘 · 연결 실패 화면 · 스토어 원본을 한 번에 생성,
   `gen-splash.mjs` 로 iOS PWA 시작 이미지도 다시. Android 시작 화면 아이콘 원 색 `#8F8D8D` → `#EFE7FF`(`styles.xml`).
 - 앱 안 로고(웹 시작 화면 · 오프라인 · 404 · 오류 · 관리자 사이드바 · 로그인)는 `icon-192.png` 를 읽어 자동으로 바뀜.
-  `sw.js` 가 `/icons` 를 cache-first 로 두므로 `STATIC_CACHE` 를 v2 → v3 로 올려 기존 기기도 새 아이콘을 받게 했다.
+  `sw.js` 가 `/icons` 를 cache-first 로 두므로 `STATIC_CACHE` 를 v2 → v3 → v4 로 올려 기존 기기도 새 아이콘을 받게 했다.
+  화면 저장본(`NAV_CACHE`, 켤 때 먼저 보여 주는 사본)도 v3 로 올려 이름 교체 전 「Stay Ops」 화면이 남지 않게 했다 — 새 서비스 워커가 깔리기 전 첫 실행 한 번은 옛 화면이 보일 수 있다(새로고침 1~2번이면 해결).
 - 앱 이름은 같은 날 「Foldy」로 교체 — 바로 위 항목.
 - 남은 확인: 앱 재설치 후 실기기 홈 화면 아이콘 · 시작 화면(네이티브 그림).
 

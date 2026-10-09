@@ -16,7 +16,7 @@
  *     are NOT touched by this handler, so in-app data stays live as before.
  * Bump the cache names to invalidate old caches on deploy. */
 const STATIC_CACHE = "stayops-static-v4"; // v3·v4 (2026-10-09): 로고 교체 · 흰 줄 복원 — /icons 는 cache-first 라 올려야 새 아이콘이 보인다
-const NAV_CACHE = "stayops-nav-v2";
+const NAV_CACHE = "stayops-nav-v3"; // v3 (2026-10-09): 이름 교체(Foldy) — 이름 바꾸기 전 화면 저장본(「Stay Ops」)을 버린다
 const OFFLINE_URL = "/offline";
 // 오프라인 화면이 쓰는 앱 아이콘. 네트워크 없이 뜨는 화면이라 **함께 프리캐시해야** 한다 —
 // 런타임 캐시에만 기대면 한 번도 받은 적 없는 기기에서 깨진 이미지가 뜬다(2026-08-04).
