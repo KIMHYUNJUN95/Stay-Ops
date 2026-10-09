@@ -6,7 +6,7 @@ import { isNativeApp, nativeCallbackToWebPath } from "@/lib/native-app";
 /**
  * 앱(Capacitor) 복귀 처리 (2026-10-06, 앱 출시 준비 B2). 루트 레이아웃에 한 번만 둔다.
  *
- * 시스템 브라우저에서 Google 로그인이 끝나면 OS 가 `com.harutokyo.stayops://auth/callback?code=…` 로 앱을 연다.
+ * 시스템 브라우저에서 Google 로그인이 끝나면 OS 가 `com.harutokyo.foldy://auth/callback?code=…` 로 앱을 연다.
  * 그 주소를 받아 시스템 브라우저를 닫고, WebView 를 웹 콜백(`/auth/callback?code=…`)으로 보낸다 — 거기서 기존
  * 서버 코드가 세션을 만든다. 앱이 꺼진 상태에서 열렸을 때(콜드 스타트)는 `getLaunchUrl()` 로 같은 처리를 한다.
  * 브라우저 · PWA 에서는 아무것도 하지 않는다.

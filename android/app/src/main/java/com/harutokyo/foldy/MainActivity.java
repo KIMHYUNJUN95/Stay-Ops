@@ -1,4 +1,4 @@
-package com.harutokyo.stayops;
+package com.harutokyo.foldy;
 
 import com.getcapacitor.BridgeActivity;
 

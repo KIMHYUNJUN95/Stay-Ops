@@ -114,7 +114,7 @@ Current recommendation:
 
 | 파일 · 폴더 | 무엇 |
 | --- | --- |
-| `capacitor.config.ts` | 앱 ID `com.harutokyo.stayops`(C4 전까지 변경 가능) · 앱 이름 · `server.url`(앱이 띄우는 배포 주소, 기본 `https://stay-ops-two.vercel.app`, `CAP_SERVER_URL` 로 덮어씀) |
+| `capacitor.config.ts` | 앱 ID `com.harutokyo.foldy`(C4 전까지 변경 가능) · 앱 이름 · `server.url`(앱이 띄우는 배포 주소, 기본 `https://stay-ops-two.vercel.app`, `CAP_SERVER_URL` 로 덮어씀) |
 | `capacitor-www/index.html` | 배포 주소에 닿지 못할 때만 보이는 대체 화면(ko/ja/en) |
 | `android/` | Android Studio 프로젝트. 권한: 인터넷 · 카메라 · 위치(정밀 · 대략) |
 | `ios/` | Xcode 프로젝트(Swift Package Manager — CocoaPods 불필요). `Info.plist` 권한 문구: 카메라 · 위치(사용 중) · 사진(영문 기본 — ko/ja 현지화는 C6) |
@@ -143,21 +143,21 @@ npm run cap:ios       # Xcode 로 열기 (macOS 만)
 Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 앱에서는 이렇게 돈다 — 웹 · PWA 는 그대로다.
 
 1. 로그인 화면 Google 버튼(`GoogleSubmitButton`)이 앱 안이면(`isNativeApp()`) 폼을 보내지 않고 서버 액션
-   `getNativeGoogleSignInUrl` 로 로그인 URL 만 받는다. 이때 `redirectTo` = **`com.harutokyo.stayops://auth/callback`**(쿼리 없음 — 아래 주의),
+   `getNativeGoogleSignInUrl` 로 로그인 URL 만 받는다. 이때 `redirectTo` = **`com.harutokyo.foldy://auth/callback`**(쿼리 없음 — 아래 주의),
    PKCE 확인 쿠키는 앱 WebView 에 심긴다.
 2. 그 URL 을 `@capacitor/browser` 로 연다(iOS SFSafariViewController · Android Custom Tab).
-3. 로그인이 끝나면 Supabase 가 `com.harutokyo.stayops://auth/callback?code=…` 로 보내고, OS 가 앱을 연다.
+3. 로그인이 끝나면 Supabase 가 `com.harutokyo.foldy://auth/callback?code=…` 로 보내고, OS 가 앱을 연다.
 4. 루트 레이아웃의 `NativeAuthBridge` 가 `appUrlOpen`(실행 중) · `getLaunchUrl()`(콜드 스타트)을 받아 브라우저를 닫고 WebView 를
    `/auth/callback?code=…` 로 보낸다 → 기존 콜백이 1번의 쿠키로 세션을 만든다.
 
 - 스킴 정의는 네 곳이 **같아야** 한다: `src/lib/native-app.ts` `NATIVE_APP_SCHEME` · `AndroidManifest.xml` intent-filter ·
-  iOS `Info.plist` `CFBundleURLTypes` · **Supabase Auth → URL Configuration → Redirect URLs 에 `com.harutokyo.stayops://auth/callback`**.
+  iOS `Info.plist` `CFBundleURLTypes` · **Supabase Auth → URL Configuration → Redirect URLs 에 `com.harutokyo.foldy://auth/callback`**.
   마지막이 빠지면 Supabase 가 Site URL(웹)로 돌려보내 로그인이 시스템 브라우저에서 끝나고 앱은 로그아웃 상태로 남는다.
 - **`redirectTo` 는 등록된 주소와 글자까지 같아야 한다.** 2026-10-08 까지 `?next=%2Fmobile` 을 붙여 보냈더니 목록과 맞지 않아
   Supabase 가 Site URL 로 돌려보냈다(auth 로그의 `referer` 가 `https://stay-ops-two.vercel.app`). Chrome 에 이미 웹 로그인이 있어서
   **앱 안 브라우저(Custom Tab) 안에서 로그인된 웹이 열려** 앱에 들어간 것처럼 보였다 — 위쪽에 주소 · X · 공유 버튼이 있으면 앱이 아니다.
   지금은 쿼리 없이 보내고, 콜백이 기기 기본 경로(`/mobile`)로 보낸다.
-- **앱 복귀 주소는 문자열로 판정한다**(`nativeCallbackToWebPath`). 예전 Chromium WebView 는 `com.harutokyo.stayops://auth/callback` 에서
+- **앱 복귀 주소는 문자열로 판정한다**(`nativeCallbackToWebPath`). 예전 Chromium WebView 는 `com.harutokyo.foldy://auth/callback` 에서
   host 를 나누지 않아(`//auth/callback` 이 통째로 pathname) `new URL()` 판정이 늘 실패했고, 로그인 코드가 조용히 버려졌다(2026-10-08).
 - 회원가입 확인 · 비밀번호 재설정 **메일 링크**는 아직 브라우저에서 열린다(앱으로 열려면 Universal Links / App Links — 계획 C2).
 

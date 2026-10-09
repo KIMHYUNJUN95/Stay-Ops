@@ -30,7 +30,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   iOS 권한 문구 · 연결 실패 화면 · 법적 문서 · 지원 페이지 · 엑셀/PDF · Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · docs.
 - 내부 식별자(쿠키 · 저장소 키 · 앱 ID · 배포 주소 등)는 그대로 — 결정 로그 2026-10-09.
 - 사용자 완료: Google OAuth 동의 화면(이름 · 로고 · 링크) · Supabase 인증 메일 2종(3개 언어 Foldy 문구) · Slack 앱 「Foldy Automation」.
-- 남은 일(👤): 앱 ID 결정 · 앱 재설치 확인.
+- 앱 ID 도 `com.harutokyo.foldy` 로 교체(같은 날). 남은 일(👤): Supabase Redirect URLs 에 `com.harutokyo.foldy://auth/callback` 추가 · 옛 테스트 앱 삭제 후 새로 설치.
 
 ## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
 
@@ -190,7 +190,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-10-06 — 앱 안 Google 로그인 (앱 출시 준비 B2)
 
-- 앱(Capacitor)에서는 Google 로그인을 시스템 브라우저로 열고 `com.harutokyo.stayops://auth/callback` 으로 앱에 돌아와 기존 `/auth/callback` 에서
+- 앱(Capacitor)에서는 Google 로그인을 시스템 브라우저로 열고 `com.harutokyo.foldy://auth/callback` 으로 앱에 돌아와 기존 `/auth/callback` 에서
   세션을 만든다. 웹 · PWA 는 그대로. Supabase Redirect URLs 에 앱 스킴 추가 필요(사용자). (`03` 「앱 안 Google 로그인」, `07`, `17`)
 
 ## 2026-10-06 — 게시판 신고 취소 · 관리 콘솔 「게시판 신고」 (앱 출시 준비 B4-2)
@@ -200,7 +200,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-10-06 — Capacitor 채택 · iOS/Android 골격 (앱 출시 준비 B0 · B1)
 
-- 사용자 승인으로 앱 껍데기 = Capacitor 8(웹 · PWA 는 그대로). `capacitor.config.ts`(앱 ID `com.harutokyo.stayops`, 배포된 웹을 띄움) ·
+- 사용자 승인으로 앱 껍데기 = Capacitor 8(웹 · PWA 는 그대로). `capacitor.config.ts`(앱 ID `com.harutokyo.foldy`, 배포된 웹을 띄움) ·
   `android/` · `ios/`(SPM) · 카메라 · 위치 권한. 빌드는 사용자 PC(Android Studio / Mac Xcode). 계정 삭제 후 성별 · 입사일은 고용 기록으로 남김(결정).
   (`03` 「앱 빌드」, `17`, `01`)
 

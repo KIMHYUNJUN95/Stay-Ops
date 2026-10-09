@@ -762,7 +762,7 @@ Run the commands after Supabase API authentication is available through `npx sup
 - Confirm the production support email and `VAPID_SUBJECT` before enabling those channels.
 - Verify Google OAuth and redirect URLs in the target Supabase project/dashboard.
 - **앱(Capacitor) Google 로그인용 Redirect URL (2026-10-06):** Supabase Dashboard → Authentication → URL Configuration → Redirect URLs 에
-  `com.harutokyo.stayops://auth/callback` 를 추가한다. 없으면 앱의 Google 로그인이 앱으로 돌아오지 못한다. 상세: `03-deployment-strategy.md` 「앱 안 Google 로그인」.
+  `com.harutokyo.foldy://auth/callback` 를 추가한다. 없으면 앱의 Google 로그인이 앱으로 돌아오지 못한다. 상세: `03-deployment-strategy.md` 「앱 안 Google 로그인」.
 - Verify both Vercel environment variables and GitHub Actions secrets for scheduled jobs.
 - In-app notifications are live; Web Push remains a separately configured delivery channel.
 ## Reservation Calendar Flags

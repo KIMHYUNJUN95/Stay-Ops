@@ -17,7 +17,7 @@ describe("nativeCallbackToWebPath", () => {
 
   it("다른 스킴 · 다른 경로는 무시한다", () => {
     expect(nativeCallbackToWebPath("https://stay-ops-two.vercel.app/auth/callback?code=abc")).toBeNull();
-    expect(nativeCallbackToWebPath("com.harutokyo.stayops://other/path?code=abc")).toBeNull();
+    expect(nativeCallbackToWebPath("com.harutokyo.foldy://other/path?code=abc")).toBeNull();
     expect(nativeCallbackToWebPath("evil.app://auth/callback?code=abc")).toBeNull();
     expect(nativeCallbackToWebPath("not a url")).toBeNull();
     expect(nativeCallbackToWebPath(`${NATIVE_AUTH_CALLBACK}extra?code=abc`)).toBeNull();

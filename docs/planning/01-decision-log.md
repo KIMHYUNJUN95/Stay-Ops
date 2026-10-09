@@ -2,6 +2,14 @@
 
 This file records important project decisions.
 
+## 2026-10-09 앱 ID com.harutokyo.stayops → `com.harutokyo.foldy` (사용자 확정)
+
+- 사용자 「응 직접해줘」(추천안). 스토어 등록(C4) 전이라 지금 바꾸는 비용이 가장 작다 — 등록 후에는 못 바꾸고 Play 스토어 주소
+  (`?id=`)에 그대로 보인다. 바꾼 곳: `capacitor.config.ts` `appId` · Android `namespace` / `applicationId` / `MainActivity` 패키지(폴더 이동) ·
+  `strings.xml` · `AndroidManifest.xml` 스킴 · iOS `PRODUCT_BUNDLE_IDENTIFIER` · `Info.plist` URL 스킴 · `NATIVE_APP_SCHEME` · 스토어 열기 주소.
+- **앱 로그인 복귀 주소가 `com.harutokyo.foldy://auth/callback` 으로 바뀌므로 Supabase Redirect URLs 에 추가해야 앱 Google 로그인이 된다**(17번 B2-1).
+  옛 주소는 새 앱이 쓰지 않으니 지워도 된다. ID 가 달라 기기에서는 다른 앱 — 옛 테스트 앱은 지우고 새로 설치.
+
 ## 2026-10-09 앱 이름 StayOps → 「Foldy」 (사용자 확정)
 
 - 사용자: 이름 후보(13번 로고와 어울리는 이름 10) 중 「8번(Foldy)으로 하자」 → 「로고랑 이름 폴디 전부 싹 다 하나도 빠짐없이 수정」.
@@ -11,8 +19,7 @@ This file records important project decisions.
   `strings.xml` · iOS `CFBundleDisplayName`) · iOS 권한 문구 · 연결 실패 화면 · 법적 문서(`legal-content.ts`) · 지원 페이지 · 엑셀/PDF 작성자 ·
   Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · `docs/` 전부. 비밀번호 금지 조각에 `foldy` 추가.
 - **그대로 둔 것(내부 식별자 — 바꾸면 기존 사용자가 로그아웃 · 설정 초기화되거나 바깥 연동이 끊긴다)**: 쿠키 `stayops_*` · 저장소 키
-  `stayops:*` · 칸 프레임 `stayops-pane` · 서비스 워커 캐시 이름 · `package.json` 이름 · 앱 ID/번들/스킴 `com.harutokyo.stayops`(스토어 등록 전
-  결정 — 17번) · 배포 주소 `stay-ops-two.vercel.app` · 심사관 계정 이메일 · 이미 적용된 마이그레이션 주석.
+  `stayops:*` · 칸 프레임 `stayops-pane` · 서비스 워커 캐시 이름 · `package.json` 이름 · 배포 주소 `stay-ops-two.vercel.app` · 심사관 계정 이메일 · 이미 적용된 마이그레이션 주석.
 - 바깥 서비스 이름(Slack 앱 · Google OAuth 동의 화면 · Supabase 메일 템플릿 · Vercel · GitHub)은 각 콘솔에서 사람이 바꾼다 — 17번 「브랜드 교체」 표.
 
 ## 2026-10-09 앱 로고 교체 — 「접힌 리넨」 (시안 20종 중 13번, 사용자 확정)
@@ -130,7 +137,7 @@ This file records important project decisions.
 갱신이다. 네이티브 기능(시스템 브라우저 로그인 · 푸시 · 카메라 · 위치 · 공유 시트 · Apple 로그인)은 플러그인으로 하나씩 붙인다.
 **웹 · 설치형 PWA 는 지금처럼 그대로 운영한다** — PWA-first 를 버리는 게 아니라 같은 웹 위에 스토어 배포 경로를 더하는 것.
 React Native/Expo 로 다시 짓는 안(옛 결정의 「later」)은 채택하지 않는다 — 같은 화면을 두 번 만들게 된다.
-앱 ID 안 `com.harutokyo.stayops` 는 스토어 등록(C4) 전까지 바꿀 수 있다. 계획 · 진행: `docs/planning/17-app-release-plan.md`.
+앱 ID 안 `com.harutokyo.foldy` 는 스토어 등록(C4) 전까지 바꿀 수 있다. 계획 · 진행: `docs/planning/17-app-release-plan.md`.
 
 ## 2026-10-06 계정 삭제 후 성별 · 입사일은 고용 기록으로 남긴다
 

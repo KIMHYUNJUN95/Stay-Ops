@@ -45,7 +45,7 @@
 | ~~앱 표시 이름~~ ✅ 2026-10-09 | `capacitor.config.ts` `appName` · Android `strings.xml` `app_name`/`title_activity_main` · iOS `CFBundleDisplayName` · PWA `manifest*.webmanifest` | 홈 화면 아이콘 아래 이름. 스토어 등록 전까지 자유롭게 바꿀 수 있다 |
 | ~~화면 문구~~ ✅ 2026-10-09 | `src/lib/i18n.ts`(ko/ja/en 36곳) · 웹 시작 화면 · 헤더 워드마크(「Foldy」) · `src/` 기타 파일 | 3개 언어 함께 교체 완료 |
 | ~~법적 문서 · 스토어 문구~~ ✅ 2026-10-09 | `src/lib/legal-content.ts`(24곳) · `18-store-review-kit.md` · 지원 페이지 · iOS 권한 문구(`*.lproj/InfoPlist.strings`) | 방침 · 약관의 서비스 이름 |
-| **앱 ID / 번들 ID** (`com.harutokyo.stayops`) | `capacitor.config.ts` `appId` · Android 패키지 · iOS 번들 · 앱 스킴 `com.harutokyo.stayops://` · **Supabase Redirect URLs** | **스토어 등록(C4) 후에는 못 바꾼다.** 새 이름에 맞출지 C4 전에 결정 (👤). 회사 도메인 기준이라 그대로 둬도 무방. **2026-10-09 이름 교체 때는 그대로 둠(미결)** |
+| ~~앱 ID / 번들 ID~~ ✅ 2026-10-09 → `com.harutokyo.foldy` | `capacitor.config.ts` `appId` · Android 패키지 · iOS 번들 · 앱 스킴 `com.harutokyo.foldy://` · **Supabase Redirect URLs** | **스토어 등록(C4) 후에는 못 바꾼다.** 새 이름에 맞출지 C4 전에 결정 (👤). 회사 도메인 기준이라 그대로 둬도 무방. **2026-10-09 이름 교체 때는 그대로 둠(미결)** |
 | 바깥 서비스의 이름 (👤) | ✅ Google OAuth 동의 화면(이름 Foldy · 로고 · 홈페이지/방침/약관 링크 · 승인 도메인 `stay-ops-two.vercel.app`, 2026-10-09) · ✅ Supabase 인증 메일(Confirm sign up · Reset password 를 Foldy 3개 언어 문구로, 2026-10-09) · ✅ Slack 앱 「Foldy Automation」(이름 · 새 아이콘 · 배경색 `#5B2BD6`, 2026-10-09) · [ ] Vercel 프로젝트/주소 `stay-ops-two` · GitHub 저장소 | 코드 밖이라 각 콘솔에서 바꾼다. **자체 도메인(C1) 때 Google 동의 화면의 홈페이지 · 방침 · 약관 링크와 승인 도메인도 새 도메인으로** |
 
 ## 0단계 — 계정 · 도메인 (오래 걸리므로 지금 시작)
@@ -66,8 +66,8 @@
 | B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [~] 2026-10-08 Pixel 8 에뮬레이터(API 35)에서 설치 · 실행 · 로그인 → 모바일 홈(판매 캘린더) 정상. 남은 확인: 출퇴근 QR 권한 · 다운로드 · 외부 링크 · 뒤로가기 · 연결 실패 화면. 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 → 연결 실패 화면(비행기 모드) → 새 아이콘 · 시작 화면 |
 | B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [~] 2026-10-07 서명 없는 시뮬레이터 빌드 확인 워크플로 · 서명 · TestFlight 업로드는 A2 후 | `.github/workflows/ios-build-check.yml` — iOS 파일이 바뀌면 macOS 러너에서 컴파일 확인. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
 | B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 (+👤 원본) | [x] 2026-10-09 **새 로고(접힌 리넨)로 벡터에서 생성** — 1024 스토어 아이콘도 선명. 남은 것: 실기기에서 홈 화면 아이콘 · 시작 화면 확인(재설치 필요) | `node scripts/dev/generate-app-icons.mjs [원본]`. `03` 「아이콘 · 스플래시」 |
-| B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.stayops://auth/callback`. `03` 「앱 안 Google 로그인」 |
-| B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.stayops://auth/callback` 추가** | 👤 | [x] 2026-10-06 | 사용자 설정 완료(Redirect URLs 5개). 이게 있어야 앱으로 돌아온다 |
+| B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.foldy://auth/callback`. `03` 「앱 안 Google 로그인」 |
+| B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.foldy://auth/callback` 추가** | 👤 | [ ] 2026-10-09 앱 ID 교체로 **다시 필요**(2026-10-06 에 옛 `com.harutokyo.stayops://…` 로 완료했었다) | 이게 있어야 앱으로 돌아온다 |
 | B2-2 | **실기기에서 앱 Google 로그인 확인** | 👤 | [x] 2026-10-08 N10 수정(`b77cffc` · `9c5167d`) 후 에뮬레이터에서 Google 로그인 → 앱 복귀 → 앱 화면(주소창 없음) 확인 | 위쪽에 주소 · X 버튼이 보이면 앱이 아니라 앱 안 브라우저 |
 | B3 | **WebView 호환 점검** — 다운로드, 외부 링크(Beds24 · OTA · 지도 · 전화), 카메라 · 위치 권한, Android 뒤로가기 버튼, safe-area | 🤖 | [x] 2026-10-06 | `NativeShellBridge` — 외부 링크 · 다운로드 → 앱 안 브라우저, 같은 출처 새 창 → WebView, 뒤로가기 버튼, SystemBars 설정. 실기기 확인은 B1-1. `03` 「앱 안 WebView 보정」 |
 | B4 | **게시판 신고 · 차단** (`/mobile/board`) | 🤖 | [x] 2026-10-06 | 신고(사유 5종 + 메모) → 신고자에게 즉시 숨김, owner · office_admin 이 `/mobile/board/reports` 에서 삭제 / 문제없음. 차단 = 내 게시판에서 숨김, 계정 → 보안에서 해제. `23-board-workflow.md` §12-C |
@@ -149,7 +149,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | C1 | **도메인 연결 · 주소 교체** — Vercel 도메인, Supabase 로그인 리디렉트, Google OAuth 승인 도메인, `NEXT_PUBLIC_APP_URL`, 약관 · 지원 URL | 🤝 | [ ] | A4 이후 |
 | C2 | **앱 링크 검증 파일** — iOS `apple-app-site-association`, Android `assetlinks.json` | 🤖 | [ ] | 링크를 누르면 앱이 열리게 + B2 로그인 복귀 |
 | C3 | **Apple 로그인** | 🤝 | [ ] | Google 로그인이 있으므로 iOS 필수(Apple 4.8). Supabase Apple provider + Services ID · 키 |
-| C4 | **서명 · 번들 ID(iOS) · 패키지명(Android)** | 🤝 | [ ] | 한 번 정하면 못 바꿈. 안: `com.harutokyo.stayops` |
+| C4 | **서명 · 번들 ID(iOS) · 패키지명(Android)** | 🤝 | [ ] | 한 번 정하면 못 바꿈. **ID 확정 `com.harutokyo.foldy`(2026-10-09)** — 남은 것: 서명 키 |
 | C5 | **네이티브 푸시** — iOS APNs · Android FCM | 🤖 | [ ] | 「알림은 막바지에 일괄 구현」 방침과 같은 배치로 |
 | C6 | **권한 설명 문구 · 개인정보 신고** — Info.plist(카메라 · 위치 · 사진, ko/ja/en), `PrivacyInfo.xcprivacy`, App Store 개인정보 라벨, Google Play 데이터 보안 양식 | 🤖 (+👤 제출) | [~] 2026-10-07 준비 완료 · 콘솔 제출 남음 | 답안: `18-store-review-kit.md`. `src/lib/legal-content.ts` 수집 항목과 일치해야 함. iOS 빌드 확인은 B1-3 |
 | C7 | **스토어 등록 자료** — 아이콘 1024px, 스크린샷(아이폰 · 아이패드 · 안드로이드 폰 · 태블릿), 3개 언어 설명문, 연령 등급, 카테고리 | 🤖 (+👤 제출) | [~] 2026-10-07 아이콘 · 3개 언어 문구 · 카테고리 · 연령 등급 답안 완료 · 스크린샷 남음 | `18-store-review-kit.md` §7. 스크린샷은 에뮬레이터(B1-1) + 데모 데이터(B6)로 |
@@ -208,3 +208,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-09 | (이 커밋) | 앱 이름 StayOps → Foldy — 화면 문구(ko/ja/en) · 앱 표시 이름 · 법적 문서 · 권한 문구 · 문서 전부 |
 | 2026-10-09 | `7688de1` | 출시 보강 H1~H13 · 네이티브 품질 N13~N16 · N6 원인 수정(오류 화면 3개 언어 · 오프라인 자동 복귀) · 빌드 번호 2 |
 | 2026-10-09 | (이 커밋) | 바깥 서비스 이름 교체 기록 — Google 동의 화면 · Supabase 인증 메일 완료(사용자) |
+| 2026-10-09 | (이 커밋) | 앱 ID `com.harutokyo.stayops` → `com.harutokyo.foldy` (Android 패키지 · iOS 번들 · 앱 스킴) — Supabase Redirect URL 재등록 필요 |

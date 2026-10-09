@@ -377,7 +377,7 @@ export async function signInWithGoogle(formData: FormData) {
  * 앱(Capacitor) 전용 — Google 로그인 URL 만 돌려준다(2026-10-06, 앱 출시 준비 B2).
  *
  * Google 은 앱 내 WebView 의 OAuth 를 막는다(`disallowed_useragent`). 그래서 앱은 이 URL 을 시스템 브라우저
- * (`@capacitor/browser`)로 열고, 로그인이 끝나면 `com.harutokyo.stayops://auth/callback?code=…` 로 앱이 다시 열린다
+ * (`@capacitor/browser`)로 열고, 로그인이 끝나면 `com.harutokyo.foldy://auth/callback?code=…` 로 앱이 다시 열린다
  * → `NativeAuthBridge` 가 WebView 를 `/auth/callback?code=…` 로 보내 세션을 만든다.
  */
 export async function getNativeGoogleSignInUrl(
