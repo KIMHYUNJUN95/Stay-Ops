@@ -29,8 +29,8 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 사람에게 보이는 이름 전부 교체: 화면 문구(ko/ja/en) · 워드마크 · 페이지 제목 · PWA 매니페스트 · 앱 표시 이름(iOS · Android · Capacitor) ·
   iOS 권한 문구 · 연결 실패 화면 · 법적 문서 · 지원 페이지 · 엑셀/PDF · Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · docs.
 - 내부 식별자(쿠키 · 저장소 키 · 앱 ID · 배포 주소 등)는 그대로 — 결정 로그 2026-10-09.
-- 사용자 완료: Google OAuth 동의 화면(이름 · 로고 · 링크) · Supabase 인증 메일 2종(3개 언어 Foldy 문구).
-- 남은 일(👤): Slack 앱 이름 「StayOps Automation」 · 앱 ID 결정 · 앱 재설치 확인.
+- 사용자 완료: Google OAuth 동의 화면(이름 · 로고 · 링크) · Supabase 인증 메일 2종(3개 언어 Foldy 문구) · Slack 앱 「Foldy Automation」.
+- 남은 일(👤): 앱 ID 결정 · 앱 재설치 확인.
 
 ## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
 
@@ -165,7 +165,7 @@ and the major mobile/admin operations modules are implemented and being hardened
 
 ## 2026-10-07 — 자동화 Slack 연결 · 저쪽 메시지와 대조 · 예약 바로가기
 
-- Slack 앱 「StayOps Automation」 웹훅 4개(일일 · 청소 · 취소 · 당일예약 채널)를 Vercel 에 등록(`SLACK_AUTOMATION_*`). 발송은 아직 꺼짐.
+- Slack 앱 「StayOps Automation」 웹훅 4개(일일 · 청소 · 취소 · 당일예약 채널)를 Vercel 에 등록 — 2026-10-09 「Foldy Automation」 으로 이름 변경(`SLACK_AUTOMATION_*`). 발송은 아직 꺼짐.
 - 저쪽 마지막 자동 발송과 같은 날짜로 대조 — 계산 일치. 표시 형식은 사용자 결정대로 맞춤(건물 순서 · 오쿠보/사노 이름 · 스테이아리 방 숫자만 ·
   🔔/↻ · 금액 ¥0 · Booking). 알림 링크는 `/go/reservation/<id>` — 권한 있으면 PC/폰 판매 캘린더에서 예약을 열고, 없으면 「권한이 없어요」.
   (`36` 「Slack 연결」 · 「표시 형식」 · 「예약 바로가기 링크」, `32`, `31`)
