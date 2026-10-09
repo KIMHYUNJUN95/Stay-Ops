@@ -20,6 +20,19 @@
   }
 }
 
+/* Launch splash 안전장치 (2026-10-09) — 시작 화면은 React 가 붙어야 닫히는데, 배포 직후 옛 저장본의 JS 가 못 뜨면 영영 안 닫혔다
+   (사파리 보고). JS 없이도 2.5초 뒤에는 CSS 가 스스로 걷어 낸다. 정상이면 React 가 0.34초에 먼저 지우므로 보이지 않는다.
+   복구(새 문서로 다시 열기)는 `src/lib/stale-chunk-recovery.ts`. */
+[data-splash] {
+  animation: splash-failsafe 200ms ease 2500ms forwards;
+}
+@keyframes splash-failsafe {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 /* Launch splash — icon pops in (see src/components/pwa/splash-screen.tsx). */
 @keyframes splash-pop {
   0% {

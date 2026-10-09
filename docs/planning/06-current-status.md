@@ -30,6 +30,15 @@ and the major mobile/admin operations modules are implemented and being hardened
 - 모바일 예약 캘린더(`/mobile/calendar`)의 Beds24 실시간 구독을 판매 캘린더와 같은 공용 `useBeds24LiveRefresh` 로 — 연결이 끊겼다 다시
   붙거나 · 네트워크 복귀 · 1분 넘게 가려졌던 화면이 다시 보이면 한 번 다시 읽는다(폰을 잠갔다 열면 그 사이 예약이 안 보이던 것). (`15`)
 
+## 2026-10-09 — 사파리 첫 접속 때 시작 화면에서 멈추던 것
+
+- 증상(사용자): 사파리로 처음 들어가면 아이콘 시작 화면이 안 사라짐, 새로고침하면 들어가짐. 원인: 서비스 워커가 빠른 첫 화면을 위해 배포 전
+  문서 저장본을 먼저 내주는데, 그 문서가 가리키는 옛 JS 청크가 새 배포에 없어 React 가 붙지 않음 → 시작 화면을 닫는 코드가 안 돎.
+  배포할 때마다 재발할 수 있던 문제.
+- 수정: ① `<head>` 인라인 `STALE_CHUNK_RECOVERY_SCRIPT`(`src/lib/stale-chunk-recovery.ts`) — `/_next/static` 스크립트 실패를 잡아
+  `?__fresh=` 로 한 번 다시 열어 저장본을 건너뜀(그리기 전에 주소에서 지움, 10초 무한 새로고침 방지) ② `globals.css` `splash-failsafe` —
+  JS 없이도 2.5초 뒤 시작 화면을 걷어 냄. 테스트 `stale-chunk-recovery.test.ts`. 문서 16 「Launch splash」.
+
 ## 2026-10-09 — 앱 이름 StayOps → Foldy
 
 - 사람에게 보이는 이름 전부 교체: 화면 문구(ko/ja/en) · 워드마크 · 페이지 제목 · PWA 매니페스트 · 앱 표시 이름(iOS · Android · Capacitor) ·

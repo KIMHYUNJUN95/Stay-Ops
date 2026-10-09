@@ -22,6 +22,7 @@ import { getDictionary, inferLocaleFromAcceptLanguage, isLocale } from "@/lib/i1
 import { buildOutdatedEngineScript } from "@/lib/outdated-engine-guard";
 import { getCurrentAppSession } from "@/lib/session";
 import { SPLIT_PANE_BOOT_SCRIPT } from "@/lib/split-pane";
+import { STALE_CHUNK_RECOVERY_SCRIPT } from "@/lib/stale-chunk-recovery";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -165,6 +166,8 @@ export default async function RootLayout({
             }),
           }}
         />
+        {/* 배포 직후 서비스 워커 저장본이 옛 JS 청크를 가리켜 시작 화면에 멈추면 새 문서로 한 번 다시 연다 — `src/lib/stale-chunk-recovery.ts`. */}
+        <script dangerouslySetInnerHTML={{ __html: STALE_CHUNK_RECOVERY_SCRIPT }} />
         {/* 2분할 오른쪽 칸 안이면 그리기 전에 「칸 모드」로(메뉴 · 머리 숨김) — `src/lib/split-pane.ts`. */}
         <Script id="stayops-split-pane" strategy="beforeInteractive">
           {SPLIT_PANE_BOOT_SCRIPT}
