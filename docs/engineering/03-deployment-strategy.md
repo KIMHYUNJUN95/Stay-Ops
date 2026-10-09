@@ -173,6 +173,7 @@ Google 은 앱 내 WebView 의 OAuth 를 막는다(`403 disallowed_useragent`). 
 | 다른 출처 `window.open`(예: 캘린더 지도) | 새 탭 | 앱 안 브라우저 |
 | `tel:` · `mailto:` | OS | Capacitor 가 OS 로 넘김(손대지 않음) |
 | Android 뒤로가기 버튼 | — | 오버레이 닫기 → 이전 화면 → 앱 최소화(`16-mobile-navigation.md`) |
+| 앱 안 브라우저 모양 | — | 툴바 = 앱 바탕색 아이보리(`IN_APP_BROWSER_OPTIONS` — 외부 링크 · Google 로그인 공통, N5) |
 | 링크 · 사진 길게 누르기 | 브라우저 메뉴 | 메뉴 없음(`contextmenu` 차단, 입력칸 · 편집 영역 제외). iOS 링크 미리보기 off(`ios.allowsLinkPreview: false`) — N8 |
 
 - 상태바 · 내비게이션 바: `capacitor.config.ts` `plugins.SystemBars` = `insetsHandling: "native"` + `initialViewportFitValueHint: "cover"`
@@ -284,6 +285,26 @@ Play 에 올릴 AAB 는 **업로드 키**로 서명한다(Play App Signing 이 �
    `android/app/build.gradle` 이 이 파일이 있으면 release 빌드를 자동으로 서명한다(없으면 서명 없이).
 3. **키 파일과 비밀번호를 회사 비밀 보관소 두 곳 이상에 백업한다.** 잃어버리면 Play Console 에서 업로드 키 재설정을 요청해야 한다(며칠 걸림).
 4. 릴리스 AAB: Build → Generate Signed App Bundle → release → `android/app/release/app-release.aab`. 올릴 때마다 `versionCode` +1(iOS 빌드 번호도 같이).
+
+### iOS TestFlight 업로드 (Mac 없이, 2026-10-09)
+
+`.github/workflows/ios-testflight.yml` — GitHub 의 macOS 러너가 서명된 앱을 만들어 App Store Connect(TestFlight)에 올린다. **수동 실행만**
+(Actions → iOS TestFlight → Run workflow). 인증서 · 프로비저닝 파일은 손으로 만들지 않는다 — App Store Connect API 키로 Xcode 의
+**클라우드 관리 서명**(`-allowProvisioningUpdates`)이 배포 인증서 · 프로필을 알아서 만든다.
+
+준비(Apple Developer 가입 A2 뒤 한 번):
+1. developer.apple.com → Identifiers 에 번들 ID `com.harutokyo.stayops` 등록(앱 ID 를 바꾸기로 하면 그 값).
+2. App Store Connect → 앱 → 새 앱(이름 Foldy, 번들 ID 위 값, SKU 아무 값) — 업로드 대상이 있어야 한다.
+3. App Store Connect → Users and Access → Integrations → **App Store Connect API** → 키 생성(역할 **Admin** — 클라우드 서명에 필요) →
+   `AuthKey_XXXX.p8` 내려받기(한 번만 받을 수 있다), Key ID · Issuer ID 기록.
+4. GitHub 저장소 → Settings → Secrets and variables → Actions → 4개: `APPLE_TEAM_ID`(Membership 의 Team ID) · `ASC_KEY_ID` · `ASC_ISSUER_ID` ·
+   `ASC_KEY_P8_BASE64`(`.p8` 파일을 base64 한 줄로 — Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXX.p8"))`).
+
+- 빌드 번호 = `project.pbxproj` `CURRENT_PROJECT_VERSION`(Android `versionCode` 와 같은 값). 같은 번호는 두 번 못 올린다 — 다시 올릴 땐 두 곳을
+  함께 +1 해 커밋하거나, 시험 업로드는 실행 화면의 `build_number` 칸으로 덮어쓴다.
+- 시크릿이 하나라도 없으면 첫 단계에서 「Missing secrets」로 바로 멈춘다(빌드 비용 없음).
+- 올린 빌드는 App Store Connect → TestFlight 에서 처리(10~30분) 후 내부 테스터에게 보인다(C8). 첫 업로드 때 「수출 규정」 질문은
+  `ITSAppUsesNonExemptEncryption = false` 로 건너뛴다.
 
 ### 아이콘 · 스플래시
 

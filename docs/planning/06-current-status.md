@@ -9,6 +9,12 @@ step was deferred, design-only, pending, or not implemented, the newest dated en
 win. The concise current baseline is: Phase 13 rollout QA remains active, while the Phase 14 feature batch
 and the major mobile/admin operations modules are implemented and being hardened.
 
+## 2026-10-09 — 앱 안 브라우저 툴바 · iOS TestFlight 워크플로
+
+- N5: 앱 안 브라우저(외부 링크 · Google 로그인) 툴바를 앱 바탕색 아이보리로(`IN_APP_BROWSER_OPTIONS`).
+- B1-3: Mac 없이 서명된 iOS 앱을 TestFlight 에 올리는 GitHub Actions `ios-testflight.yml`(수동 실행, App Store Connect API 키 + 클라우드 관리 서명).
+  Apple Developer 가입(A2) 뒤 시크릿 4개만 넣으면 된다 — 03 「iOS TestFlight 업로드」.
+
 ## 2026-10-09 — 앱 출시 보강 (H1~H13 · N13~N16)
 
 - 출시 전 기술 점검에서 찾은 공백을 모두 수정(17번 「출시 보강 목록」, 03번 「앱 출시 보강」 · 「Android 릴리스 서명」).

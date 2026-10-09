@@ -64,7 +64,7 @@
 | B0 | **Capacitor 채택 결정** | 👤 승인 | [x] 2026-10-06 | 결정 로그 기록 |
 | B1 | **Capacitor 골격** (iOS · Android 프로젝트, 앱 ID, 권한 설정) | 🤖 | [x] 2026-10-06 | `capacitor.config.ts` · `android/` · `ios/`. 앱은 배포된 웹을 띄운다. 빌드 방법: `03-deployment-strategy.md` 「앱 빌드」 |
 | B1-1 | **실기기 · 에뮬레이터 첫 실행 확인** — Android Studio(Windows 가능) / Xcode(Mac 필요) | 👤 | [~] 2026-10-08 Pixel 8 에뮬레이터(API 35)에서 설치 · 실행 · 로그인 → 모바일 홈(판매 캘린더) 정상. 남은 확인: 출퇴근 QR 권한 · 다운로드 · 외부 링크 · 뒤로가기 · 연결 실패 화면. 절차: `03` 「Android 첫 실행」 | 이메일 · Google 로그인 → 홈 → 출퇴근 QR(카메라 · 위치 권한) → 첨부 다운로드 → 외부 링크 → 뒤로가기 버튼 → 연결 실패 화면(비행기 모드) → 새 아이콘 · 시작 화면 |
-| B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [~] 2026-10-07 서명 없는 시뮬레이터 빌드 확인 워크플로 · 서명 · TestFlight 업로드는 A2 후 | `.github/workflows/ios-build-check.yml` — iOS 파일이 바뀌면 macOS 러너에서 컴파일 확인. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
+| B1-3 | **iOS 빌드 경로** — Mac 없음 → 클라우드 빌드(Codemagic · GitHub Actions macOS 러너) | 🤝 | [~] 2026-10-07 서명 없는 시뮬레이터 빌드 확인 워크플로 · 2026-10-09 **서명 + TestFlight 업로드 워크플로 준비**(`ios-testflight.yml`, 수동 실행) — A2 후 시크릿 4개 넣고 첫 실행(03 「iOS TestFlight 업로드」) | `.github/workflows/ios-build-check.yml` — iOS 파일이 바뀌면 macOS 러너에서 컴파일 확인. 사용자 확인: Mac 없음, Android Studio 있음(2026-10-06) |
 | B1-2 | **앱 아이콘 · 스플래시** — 1024px 원본에서 생성 | 🤖 (+👤 원본) | [x] 2026-10-09 **새 로고(접힌 리넨)로 벡터에서 생성** — 1024 스토어 아이콘도 선명. 남은 것: 실기기에서 홈 화면 아이콘 · 시작 화면 확인(재설치 필요) | `node scripts/dev/generate-app-icons.mjs [원본]`. `03` 「아이콘 · 스플래시」 |
 | B2 | **앱 안 Google 로그인** — 시스템 브라우저로 로그인 → 딥링크로 앱 복귀 | 🤖 | [x] 2026-10-06 | `getNativeGoogleSignInUrl` + `@capacitor/browser` + `NativeAuthBridge`, 스킴 `com.harutokyo.foldy://auth/callback`. `03` 「앱 안 Google 로그인」 |
 | B2-1 | **Supabase Redirect URLs 에 `com.harutokyo.foldy://auth/callback` 추가** | 👤 | [ ] 2026-10-09 앱 ID 교체로 **다시 필요**(2026-10-06 에 옛 `com.harutokyo.stayops://…` 로 완료했었다) | 이게 있어야 앱으로 돌아온다 |
@@ -108,7 +108,7 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | N2 | 위치 권한이 **웹 팝업**(「stay-ops-two.vercel.app wants to use your device's location」 Block / Allow)으로 뜸 — 주소가 드러남 | 앱 이름으로 묻는 **OS 권한 팝업** 한 번만 | [x] 2026-10-08 앱에서는 `@capacitor/geolocation` 으로 읽음 — 에뮬레이터 재확인 |
 | N3 | 출퇴근 스캔에서 카메라 권한 팝업을 확인하지 못함 · 미리보기 검정 | OS 카메라 권한 팝업 → 미리보기 표시(에뮬레이터 카메라 설정도 확인) | [x] 2026-10-08 「Allow Foldy to take pictures…」 OS 팝업 확인(사용자). 미리보기는 허용 후 확인 |
 | N4 | 화면 왼쪽 가운데에 **웹용 뒤로가기 동그라미(‹)** 가 뜸 | 앱에서는 OS 뒤로 제스처 · 버튼만(웹 오버레이 숨김) | [x] 확인 결과 **Android 시스템 뒤로 제스처 화살표**였다(웹 오버레이 아님) — 수정 없음 |
-| N5 | 외부 링크(룸 링크 → Airbnb)가 앱 안 브라우저로 열림 — 동작 정상 | 툴바 색을 앱 색에 맞추기(사소) | [ ] |
+| N5 | 외부 링크(룸 링크 → Airbnb)가 앱 안 브라우저로 열림 — 동작 정상 | 툴바 색을 앱 색에 맞추기(사소) | [x] 2026-10-09 툴바 아이보리(`IN_APP_BROWSER_OPTIONS`, 외부 링크 · Google 로그인) — 재설치 후 확인 |
 | N6 | 아이폰에서 비행기 모드 → **영어 화면만 나오고 아무것도 안 눌림**(사용자 보고, 홈 화면 PWA 로 보임) | 기기 언어로 안내 + 다시 시도 · 자동 복귀. 앱은 `errorPath` 화면(D2)으로 확인 | [~] 2026-10-09 원인 추정: 오프라인에서 화면을 옮기면 뜨는 Next 오류 화면이 **영어 전용**(「Something went wrong / Try again」)이고 다시 시도가 오프라인에서 먹지 않았다 → 3개 언어 · 오프라인 안내 · 연결되면 자동 재시도(`AppErrorScreen`). 아이폰 재확인 |
 | N7 | 로그인 첫 화면이 「관리자 콘솔에 로그인」 | 폰 · 앱은 현장 앱 문구 | [x] `de5d1e5` · 앱에서 확인 |
 | N8 | 링크를 길게 누르면 **브라우저 메뉴**(Copy link address · Download link · Open in Chrome browser + 주소) | 메뉴 없음(입력칸의 붙여넣기는 유지) | [x] 2026-10-08 앱에서 `contextmenu` 차단(입력칸 제외) + iOS `allowsLinkPreview: false` — 재설치 후 확인 |
@@ -209,3 +209,4 @@ App Store 1.2 · Google Play UGC 정책이 신고 · 차단을 요구하는 대�
 | 2026-10-09 | `7688de1` | 출시 보강 H1~H13 · 네이티브 품질 N13~N16 · N6 원인 수정(오류 화면 3개 언어 · 오프라인 자동 복귀) · 빌드 번호 2 |
 | 2026-10-09 | (이 커밋) | 바깥 서비스 이름 교체 기록 — Google 동의 화면 · Supabase 인증 메일 완료(사용자) |
 | 2026-10-09 | (이 커밋) | 앱 ID `com.harutokyo.stayops` → `com.harutokyo.foldy` (Android 패키지 · iOS 번들 · 앱 스킴) — Supabase Redirect URL 재등록 필요 |
+| 2026-10-09 | (이 커밋) | N5 앱 안 브라우저 툴바 아이보리 · B1-3 iOS 서명 + TestFlight 업로드 워크플로(Mac 없이, 수동 실행) |

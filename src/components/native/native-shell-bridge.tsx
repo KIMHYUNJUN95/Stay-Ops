@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { hasNativePlugin, isNativeApp, nativePlatform } from "@/lib/native-app";
+import { hasNativePlugin, IN_APP_BROWSER_OPTIONS, isNativeApp, nativePlatform } from "@/lib/native-app";
 import { hasOpenOverlay } from "@/lib/swipe-back/controller";
 
 /**
@@ -48,7 +48,7 @@ export function NativeShellBridge() {
         return;
       }
       const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url, presentationStyle: "popover" });
+      await Browser.open({ url, ...IN_APP_BROWSER_OPTIONS });
     }
 
     function resolve(href: string): URL | null {

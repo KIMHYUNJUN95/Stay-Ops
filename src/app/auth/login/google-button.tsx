@@ -3,7 +3,7 @@
 import { useState, type MouseEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { getNativeGoogleSignInUrl } from "@/app/auth/actions";
-import { isNativeApp } from "@/lib/native-app";
+import { IN_APP_BROWSER_OPTIONS, isNativeApp } from "@/lib/native-app";
 
 function GoogleGlyph() {
   return (
@@ -45,7 +45,7 @@ export function GoogleSubmitButton({ label }: { label: string; compact?: boolean
         return;
       }
       const { Browser } = await import("@capacitor/browser");
-      await Browser.open({ url: result.url, presentationStyle: "popover" });
+      await Browser.open({ url: result.url, ...IN_APP_BROWSER_OPTIONS });
     } finally {
       // 시스템 브라우저에서 사용자가 취소하고 돌아와도 버튼이 다시 눌리도록 풀어 준다.
       setNativePending(false);

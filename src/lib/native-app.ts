@@ -82,6 +82,12 @@ export function getNativeAppInfo(): Promise<NativeAppInfo | null> {
 }
 
 /**
+ * 앱 안 브라우저(`@capacitor/browser` — iOS SFSafariViewController · Android Custom Tab) 공통 옵션(2026-10-09, 네이티브 품질 N5).
+ * 툴바를 앱 바탕색(아이보리)으로 — 기본값은 브라우저 색(흰색 · 회색)이라 앱에서 다른 앱으로 넘어간 느낌이 났다. 아이콘 색은 OS 가 대비로 고른다.
+ */
+export const IN_APP_BROWSER_OPTIONS = { presentationStyle: "popover", toolbarColor: "#F7F4EE" } as const;
+
+/**
  * 앱 사용자 에이전트 꼬리표 — `capacitor.config.ts` `appendUserAgent` 와 같아야 한다. 서버(`mobile-device.ts`)는 이 꼬리표가 있으면
  * 기기 종류와 상관없이 모바일 화면으로 보낸다(아이패드 앱이 Mac 으로 보내는 UA 때문에 관리 콘솔로 가지 않게).
  */
