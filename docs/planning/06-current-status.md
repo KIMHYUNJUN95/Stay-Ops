@@ -36,7 +36,7 @@ and the major mobile/admin operations modules are implemented and being hardened
   iOS 권한 문구 · 연결 실패 화면 · 법적 문서 · 지원 페이지 · 엑셀/PDF · Slack 알림 문구 · README · CLAUDE.md · AGENTS.md · docs.
 - 내부 식별자(쿠키 · 저장소 키 · 앱 ID · 배포 주소 등)는 그대로 — 결정 로그 2026-10-09.
 - 사용자 완료: Google OAuth 동의 화면(이름 · 로고 · 링크) · Supabase 인증 메일 2종(3개 언어 Foldy 문구) · Slack 앱 「Foldy Automation」.
-- 앱 ID 도 `com.harutokyo.foldy` 로 교체(같은 날). 남은 일(👤): Supabase Redirect URLs 에 `com.harutokyo.foldy://auth/callback` 추가 · 옛 테스트 앱 삭제 후 새로 설치.
+- 앱 ID 도 `com.harutokyo.foldy` 로 교체(같은 날). Supabase Redirect URLs 에 `com.harutokyo.foldy://auth/callback` 추가 완료(사용자). 남은 일(👤): 옛 테스트 앱 삭제 후 새로 설치 · 앱 Google 로그인 확인.
 
 ## 2026-10-09 — 앱 로고 교체 「접힌 리넨」
 
